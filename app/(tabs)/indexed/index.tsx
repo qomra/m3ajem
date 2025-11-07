@@ -31,18 +31,21 @@ function IndexedContent() {
     }
   }, []);
 
+  // Helper: Remove diacritics for search matching
+  const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');
+
   // Filter words based on search
   const filteredWords = useMemo(() => {
     if (!searchQuery.trim()) {
       return processedWords;
     }
 
-    const query = searchQuery.trim();
+    const query = removeDiacritics(searchQuery.trim());
 
     if (isReverseSearch) {
-      return processedWords.filter(item => item.word.endsWith(query));
+      return processedWords.filter(item => removeDiacritics(item.word).endsWith(query));
     } else {
-      return processedWords.filter(item => item.word.includes(query));
+      return processedWords.filter(item => removeDiacritics(item.word).includes(query));
     }
   }, [processedWords, searchQuery, isReverseSearch]);
 
@@ -52,13 +55,13 @@ function IndexedContent() {
       return processedRoots;
     }
 
-    const query = searchQuery.trim();
+    const query = removeDiacritics(searchQuery.trim());
 
     return processedRoots
       .map(group => {
         const filteredWordList = isReverseSearch
-          ? group.words.filter(word => word.endsWith(query))
-          : group.words.filter(word => word.includes(query));
+          ? group.words.filter(word => removeDiacritics(word).endsWith(query))
+          : group.words.filter(word => removeDiacritics(word).includes(query));
 
         return {
           ...group,
