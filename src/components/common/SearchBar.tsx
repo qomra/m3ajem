@@ -1,5 +1,6 @@
 import { View, TextInput, StyleSheet, Pressable, Text } from 'react-native';
 import { useTheme } from '@hooks';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface SearchBarProps {
   value: string;
@@ -13,15 +14,14 @@ export function SearchBar({ value, onChangeText, placeholder, onClear, autoFocus
   const theme = useTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
       <TextInput
-        style={[styles.input, { color: theme.colors.text }]}
+        style={[styles.input, { color: theme.colors.text, textAlign: 'right' }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={theme.colors.textSecondary}
         autoFocus={autoFocus}
-        textAlign="right"
       />
       {value.length > 0 && onClear && (
         <Pressable style={[styles.clearButton, { backgroundColor: theme.colors.textSecondary }]} onPress={onClear}>
@@ -34,7 +34,6 @@ export function SearchBar({ value, onChangeText, placeholder, onClear, autoFocus
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,

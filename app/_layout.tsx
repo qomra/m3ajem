@@ -19,12 +19,38 @@ export default function RootLayout() {
   } = useDictionaryStore();
 
   useEffect(() => {
-    // Enable RTL layout for Arabic
-    I18nManager.allowRTL(true);
-    I18nManager.forceRTL(true);
+    // Check current RTL state
+    console.log('RTL Status:', {
+      isRTL: I18nManager.isRTL,
+      doLeftAndRightSwapInRTL: I18nManager.doLeftAndRightSwapInRTL,
+    });
 
-    // Check if extraction is needed
-    checkExtractionNeeded();
+    // Enable RTL layout for Arabic
+    if (!I18nManager.isRTL) {
+      I18nManager.allowRTL(true);
+      I18nManager.forceRTL(true);
+      console.log('RTL enabled - App needs restart');
+    }
+
+    // Check if extraction is needed and load data if available
+    const initializeApp = async () => {
+      await checkExtractionNeeded();
+
+      // If extraction is not needed, load the cached data
+      const { needsExtraction: stillNeedsExtraction } = useDictionaryStore.getState();
+      if (!stillNeedsExtraction) {
+        console.log('Loading cached data...');
+        const store = useDictionaryStore.getState();
+        await Promise.all([
+          store.loadMetadata(),
+          store.loadSearchIndex(),
+          store.loadDictionaries(),
+        ]);
+        console.log('Cached data loaded successfully');
+      }
+    };
+
+    initializeApp();
   }, []);
 
   const handleAgreeExtraction = async () => {

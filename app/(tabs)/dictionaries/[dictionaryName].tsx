@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
 import { SearchBar } from '@components/common/SearchBar';
+import { getFlexDirection } from '@/utils/rtl';
 
 export default function DictionaryDetail() {
   const theme = useTheme();
@@ -71,13 +72,13 @@ export default function DictionaryDetail() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <View style={styles.headerTop}>
+        <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
+          <Text style={[styles.title, { color: theme.colors.text, textAlign: 'right' }]} numberOfLines={1}>
+            {dictionaryName}
+          </Text>
           <Pressable style={styles.backButton} onPress={handleBackPress}>
             <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
           </Pressable>
-          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-            {dictionaryName}
-          </Text>
         </View>
 
         <View style={styles.searchContainer}>
@@ -106,7 +107,7 @@ export default function DictionaryDetail() {
             ]}
             onPress={() => handleRootPress(item)}
           >
-            <Text style={[styles.rootText, { color: theme.colors.text }]}>{item}</Text>
+            <Text style={[styles.rootText, { color: theme.colors.text, textAlign: 'right' }]}>{item}</Text>
           </Pressable>
         )}
         contentContainerStyle={styles.listContent}
@@ -134,13 +135,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTop: {
-    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
   backButton: {
     padding: 4,
-    marginRight: 12,
+    marginLeft: 12,
   },
   backButtonText: {
     fontSize: 28,

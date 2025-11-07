@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface DictionaryCardProps {
   name: string;
@@ -24,10 +25,10 @@ export function DictionaryCard({ name, rootsCount, onPress, onInfoPress }: Dicti
       ]}
       onPress={onPress}
     >
-      <View style={styles.content}>
+      <View style={[styles.content, { flexDirection: getFlexDirection() }]}>
         <View style={styles.info}>
-          <Text style={[styles.name, { color: theme.colors.text }]}>{name}</Text>
-          <Text style={[styles.count, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.name, { color: theme.colors.text, textAlign: 'right' }]}>{name}</Text>
+          <Text style={[styles.count, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
             {rootsCount.toLocaleString('ar-SA')} {t('dictionaries.rootsCount')}
           </Text>
         </View>
@@ -53,7 +54,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   content: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },

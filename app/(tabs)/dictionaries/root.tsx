@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, StatusBar } from 'react-
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
+import { getFlexDirection } from '@/utils/rtl';
 
 export default function RootDetail() {
   const theme = useTheme();
@@ -23,7 +24,7 @@ export default function RootDetail() {
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
           <Pressable style={styles.backButton} onPress={handleBackPress}>
             <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
           </Pressable>
@@ -43,7 +44,7 @@ export default function RootDetail() {
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
         <Pressable style={styles.backButton} onPress={handleBackPress}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
         </Pressable>
@@ -65,18 +66,18 @@ export default function RootDetail() {
 
         {/* Dictionary Name */}
         <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
             {t('dictionaries.dictionaryName')}
           </Text>
-          <Text style={[styles.infoText, { color: theme.colors.text }]}>{dictionaryName}</Text>
+          <Text style={[styles.infoText, { color: theme.colors.text, textAlign: 'right' }]}>{dictionaryName}</Text>
         </View>
 
         {/* Definition */}
         <View style={[styles.definitionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
             {t('dictionaries.definition')}
           </Text>
-          <Text style={[styles.definitionText, { color: theme.colors.text }]}>{definition}</Text>
+          <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>{definition}</Text>
         </View>
       </ScrollView>
     </View>
@@ -92,7 +93,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    flexDirection: 'row',
     alignItems: 'center',
   },
   backButton: {
@@ -150,7 +150,6 @@ const styles = StyleSheet.create({
   definitionText: {
     fontSize: 18,
     lineHeight: 32,
-    textAlign: 'justify',
   },
   centerContainer: {
     flex: 1,

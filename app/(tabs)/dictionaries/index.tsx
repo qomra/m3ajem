@@ -6,6 +6,7 @@ import { useDictionaryStore } from '@store/dictionaryStore';
 import { DictionaryCard } from '@components/dictionaries/DictionaryCard';
 import { InfoModal } from '@components/modals/InfoModal';
 import { GlobalSearch } from '@components/dictionaries/GlobalSearch';
+import { getFlexDirection } from '@/utils/rtl';
 
 export default function DictionariesList() {
   const theme = useTheme();
@@ -76,7 +77,8 @@ export default function DictionariesList() {
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{t('dictionaries.title')}</Text>
         <Pressable
           style={[styles.searchButton, { backgroundColor: theme.colors.primary }]}
           onPress={handleShowSearch}
@@ -85,7 +87,6 @@ export default function DictionariesList() {
             {t('dictionaries.searchButton')}
           </Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{t('dictionaries.title')}</Text>
       </View>
 
       {/* Dictionaries List */}
@@ -154,7 +155,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },

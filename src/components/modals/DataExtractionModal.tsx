@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useTheme, useTranslation } from '@hooks';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface DataExtractionModalProps {
   visible: boolean;
@@ -99,18 +100,18 @@ export function DataExtractionModal({
           {/* Data Size Info */}
           {!isExtracting && (
             <View style={[styles.infoBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoValue, { color: theme.colors.text }]}>~26 MB</Text>
+              <View style={[styles.infoRow, { flexDirection: getFlexDirection() }]}>
                 <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
                   {t('extraction.compressedSize')}
                 </Text>
+                <Text style={[styles.infoValue, { color: theme.colors.text }]}>~26 MB</Text>
               </View>
               <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoValue, { color: theme.colors.text }]}>~42 MB</Text>
+              <View style={[styles.infoRow, { flexDirection: getFlexDirection() }]}>
                 <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
                   {t('extraction.uncompressedSize')}
                 </Text>
+                <Text style={[styles.infoValue, { color: theme.colors.text }]}>~42 MB</Text>
               </View>
             </View>
           )}
@@ -145,22 +146,22 @@ export function DataExtractionModal({
 
           {/* Buttons */}
           {!isExtracting && (
-            <View style={styles.buttons}>
-              <Pressable
-                style={[styles.button, styles.cancelButton, { borderColor: theme.colors.border }]}
-                onPress={onCancel}
-              >
-                <Text style={[styles.buttonText, { color: theme.colors.textSecondary }]}>
-                  {t('common.cancel')}
-                </Text>
-              </Pressable>
-
+            <View style={[styles.buttons, { flexDirection: getFlexDirection() }]}>
               <Pressable
                 style={[styles.button, styles.agreeButton, { backgroundColor: theme.colors.primary }]}
                 onPress={onAgree}
               >
                 <Text style={[styles.buttonText, styles.agreeButtonText, { color: theme.colors.background }]}>
                   {t('extraction.agree')}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.button, styles.cancelButton, { borderColor: theme.colors.border }]}
+                onPress={onCancel}
+              >
+                <Text style={[styles.buttonText, { color: theme.colors.textSecondary }]}>
+                  {t('common.cancel')}
                 </Text>
               </Pressable>
             </View>
@@ -231,7 +232,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   infoRow: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -271,7 +271,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttons: {
-    flexDirection: 'row',
     gap: 12,
   },
   button: {

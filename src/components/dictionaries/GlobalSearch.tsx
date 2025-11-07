@@ -5,6 +5,7 @@ import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
 import { SearchBar } from '@components/common/SearchBar';
 import { FilterModal } from '@components/modals/FilterModal';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface GlobalSearchProps {
   onClose: () => void;
@@ -74,10 +75,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <View style={styles.headerActions}>
-          <Pressable style={styles.closeButton} onPress={onClose}>
-            <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>✕</Text>
-          </Pressable>
+        <View style={[styles.headerActions, { flexDirection: getFlexDirection() }]}>
           <Pressable
             style={[styles.filterButton, { backgroundColor: theme.colors.primary }]}
             onPress={() => setShowFilter(true)}
@@ -85,6 +83,9 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
             <Text style={[styles.filterButtonText, { color: theme.colors.background }]}>
               {t('common.filter')}
             </Text>
+          </Pressable>
+          <Pressable style={styles.closeButton} onPress={onClose}>
+            <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>✕</Text>
           </Pressable>
         </View>
 
@@ -131,8 +132,8 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
                   ]}
                   onPress={() => handleResultPress(item)}
                 >
-                  <Text style={[styles.rootText, { color: theme.colors.text }]}>{item.root}</Text>
-                  <Text style={[styles.dictionaryText, { color: theme.colors.textSecondary }]}>
+                  <Text style={[styles.rootText, { color: theme.colors.text, textAlign: 'right' }]}>{item.root}</Text>
+                  <Text style={[styles.dictionaryText, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
                     {item.dictionaryName}
                   </Text>
                 </Pressable>
@@ -167,7 +168,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerActions: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
@@ -209,6 +209,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'right',
   },
   resultsList: {
     padding: 16,

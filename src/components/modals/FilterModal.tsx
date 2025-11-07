@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useTheme, useTranslation } from '@hooks';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface FilterModalProps {
   visible: boolean;
@@ -145,13 +146,13 @@ export function FilterModal({
         </View>
 
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('dictionaries.filterByDictionary')}
-          </Text>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>✕</Text>
           </Pressable>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {t('dictionaries.filterByDictionary')}
+          </Text>
         </View>
 
         {/* Content */}
@@ -261,7 +262,6 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   header: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,

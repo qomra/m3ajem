@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useTheme, useTranslation } from '@hooks';
+import { getFlexDirection } from '@/utils/rtl';
 
 interface InfoModalProps {
   visible: boolean;
@@ -114,13 +115,13 @@ export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: Info
         </View>
 
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('dictionaries.dictionaryInfo')}
-          </Text>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>✕</Text>
           </Pressable>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {t('dictionaries.dictionaryInfo')}
+          </Text>
         </View>
 
         {/* Content */}
@@ -131,16 +132,16 @@ export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: Info
         >
           <Text style={[styles.dictionaryName, { color: theme.colors.text }]}>{dictionaryName}</Text>
 
-          <View style={styles.statsRow}>
-            <Text style={[styles.statsLabel, { color: theme.colors.textSecondary }]}>
-              {t('dictionaries.rootsCount')}:
-            </Text>
+          <View style={[styles.statsRow, { flexDirection: getFlexDirection() }]}>
             <Text style={[styles.statsValue, { color: theme.colors.primary }]}>
               {rootsCount.toLocaleString('ar-SA')}
             </Text>
+            <Text style={[styles.statsLabel, { color: theme.colors.textSecondary }]}>
+              {t('dictionaries.rootsCount')}:
+            </Text>
           </View>
 
-          <Text style={[styles.description, { color: theme.colors.textSecondary }]}>{description}</Text>
+          <Text style={[styles.description, { color: theme.colors.textSecondary, textAlign: 'right' }]}>{description}</Text>
         </ScrollView>
       </Animated.View>
     </Modal>
@@ -179,7 +180,6 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   header: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -210,7 +210,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statsRow: {
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -226,6 +225,5 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     lineHeight: 28,
-    textAlign: 'justify',
   },
 });
