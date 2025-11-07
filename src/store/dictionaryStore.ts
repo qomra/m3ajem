@@ -23,21 +23,44 @@ interface Dictionary {
   data: Record<string, string>; // root -> definition
 }
 
+// Index data: dict name -> root -> words[]
+type IndexData = Record<string, Record<string, string[]>>;
+
+// Processed index data for quick access
+interface ProcessedIndexWord {
+  word: string;
+  root: string;
+  dictionaryName: string;
+}
+
+interface ProcessedIndexRoot {
+  root: string;
+  dictionaryName: string;
+  words: string[];
+  wordCount: number;
+}
+
 interface DictionaryState {
   // Data
   dictionaries: Dictionary[];
   searchIndex: SearchIndex | null;
   metadata: Record<string, DictionaryMetadata> | null;
+  indexData: IndexData | null;
+  processedWords: ProcessedIndexWord[]; // Sorted alphabetically (for flatten view)
+  processedWordsGrouped: ProcessedIndexWord[]; // Sorted by root first (for grouped view)
+  processedRoots: ProcessedIndexRoot[];
 
   // Loading states
   isLoadingMetadata: boolean;
   isLoadingSearchIndex: boolean;
   isLoadingDictionaries: boolean;
+  isLoadingIndex: boolean;
 
   // Error states
   metadataError: string | null;
   searchIndexError: string | null;
   dictionariesError: string | null;
+  indexError: string | null;
 
   // Extraction states
   needsExtraction: boolean;
@@ -51,6 +74,7 @@ interface DictionaryState {
   loadMetadata: (onProgress?: (progress: number) => void) => Promise<void>;
   loadSearchIndex: (onProgress?: (progress: number) => void) => Promise<void>;
   loadDictionaries: (onProgress?: (progress: number) => void) => Promise<void>;
+  loadIndex: (onProgress?: (progress: number) => void) => Promise<void>;
   searchRoot: (root: string) => Array<{ dictionary: string; definition: string }>;
   searchRootInDictionary: (dictionaryName: string, root: string) => string | null;
 }
@@ -60,6 +84,7 @@ const ASSET_MODULES = {
   metadata: require('../../assets/data/optimized/metadata.json.gz'),
   searchIndex: require('../../assets/data/optimized/search-index.json.gz'),
   maajem: require('../../assets/data/optimized/maajem-optimized.json.gz'),
+  index: require('../../assets/data/optimized/index-optimized.json.gz'),
 };
 
 // Cache keys
@@ -67,6 +92,7 @@ const CACHE_KEYS = {
   metadata: '@m3ajem/metadata',
   searchIndex: '@m3ajem/searchIndex',
   dictionaries: '@m3ajem/dictionaries',
+  index: '@m3ajem/index',
   version: '@m3ajem/version',
   extracted: '@m3ajem/extracted',
 };
@@ -146,14 +172,20 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
   dictionaries: [],
   searchIndex: null,
   metadata: null,
+  indexData: null,
+  processedWords: [],
+  processedWordsGrouped: [],
+  processedRoots: [],
 
   isLoadingMetadata: false,
   isLoadingSearchIndex: false,
   isLoadingDictionaries: false,
+  isLoadingIndex: false,
 
   metadataError: null,
   searchIndexError: null,
   dictionariesError: null,
+  indexError: null,
 
   needsExtraction: false,
   isExtracting: false,
@@ -191,10 +223,16 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
         set({ extractionProgress: 5 + (progress * 0.30) });
       });
 
-      // Step 3: Load dictionaries (large, contributes 65% to total progress)
+      // Step 3: Load dictionaries (large, contributes 50% to total progress)
       set({ extractionStep: 'جاري تحميل المعاجم...' });
       await get().loadDictionaries((progress) => {
-        set({ extractionProgress: 35 + (progress * 0.65) });
+        set({ extractionProgress: 35 + (progress * 0.50) });
+      });
+
+      // Step 4: Load index (medium, contributes 15% to total progress)
+      set({ extractionStep: 'جاري تحميل الفهرس...' });
+      await get().loadIndex((progress) => {
+        set({ extractionProgress: 85 + (progress * 0.15) });
       });
 
       // Mark extraction as complete
@@ -284,6 +322,67 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
       set({
         dictionariesError: errorMessage,
         isLoadingDictionaries: false,
+      });
+    }
+  },
+
+  // Load index data (medium, ~1MB compressed)
+  loadIndex: async (onProgress?: (progress: number) => void) => {
+    console.log('Starting index load...');
+    set({ isLoadingIndex: true, indexError: null });
+    try {
+      const data = await loadGzippedJSON<IndexData>(ASSET_MODULES.index, CACHE_KEYS.index, onProgress);
+
+      console.log('Processing index data...');
+
+      // Process data into flat arrays for quick access
+      const words: ProcessedIndexWord[] = [];
+      const roots: ProcessedIndexRoot[] = [];
+
+      Object.entries(data).forEach(([dictName, rootsData]) => {
+        Object.entries(rootsData).forEach(([root, wordList]) => {
+          // Add to roots array
+          roots.push({
+            root,
+            dictionaryName: dictName,
+            words: wordList,
+            wordCount: wordList.length,
+          });
+
+          // Add each word to words array
+          wordList.forEach(word => {
+            words.push({ word, root, dictionaryName: dictName });
+          });
+        });
+      });
+
+      // Sort arrays
+      // Flatten view: sort by word alphabetically
+      words.sort((a, b) => a.word.localeCompare(b.word, 'ar'));
+
+      // Grouped view: sort by root first, then by word within each root
+      const wordsGrouped = [...words].sort((a, b) => {
+        const rootCompare = a.root.localeCompare(b.root, 'ar');
+        if (rootCompare !== 0) return rootCompare;
+        return a.word.localeCompare(b.word, 'ar');
+      });
+
+      roots.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
+
+      console.log('Index processed successfully:', words.length, 'words,', roots.length, 'roots');
+      set({
+        indexData: data,
+        processedWords: words,
+        processedWordsGrouped: wordsGrouped,
+        processedRoots: roots,
+        isLoadingIndex: false,
+      });
+    } catch (error) {
+      console.error('Error loading index:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      set({
+        indexError: errorMessage,
+        isLoadingIndex: false,
       });
     }
   },

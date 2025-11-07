@@ -45,6 +45,7 @@ export default function RootLayout() {
           store.loadMetadata(),
           store.loadSearchIndex(),
           store.loadDictionaries(),
+          // Don't load index here - let indexed tab load it when needed
         ]);
         console.log('Cached data loaded successfully');
       }

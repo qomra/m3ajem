@@ -24,7 +24,7 @@ export default function RootDetail() {
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
           <Pressable style={styles.backButton} onPress={handleBackPress}>
             <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
           </Pressable>
@@ -44,7 +44,7 @@ export default function RootDetail() {
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <Pressable style={styles.backButton} onPress={handleBackPress}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
         </Pressable>
@@ -93,6 +93,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
   backButton: {

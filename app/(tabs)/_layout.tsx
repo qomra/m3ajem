@@ -30,8 +30,8 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: t('tabs.settings'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color} />
           ),
         }}
       />
@@ -39,8 +39,8 @@ export default function TabsLayout() {
         name="smart"
         options={{
           title: t('tabs.smart'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sparkles-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'sparkles' : 'sparkles-outline'} size={size} color={color} />
           ),
         }}
       />
@@ -48,8 +48,8 @@ export default function TabsLayout() {
         name="audio"
         options={{
           title: t('tabs.audio'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="volume-high-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'volume-high' : 'volume-high-outline'} size={size} color={color} />
           ),
         }}
       />
@@ -57,8 +57,8 @@ export default function TabsLayout() {
         name="indexed"
         options={{
           title: t('tabs.indexed'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'list' : 'list-outline'} size={size} color={color} />
           ),
         }}
       />
@@ -66,13 +66,25 @@ export default function TabsLayout() {
         name="dictionaries"
         options={{
           title: t('tabs.dictionaries'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="index"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="indexed/index"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="indexed/[word]"
         options={{
           href: null,
         }}

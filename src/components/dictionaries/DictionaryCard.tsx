@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 import { getFlexDirection } from '@/utils/rtl';
+import { Ionicons } from '@expo/vector-icons';
 
 interface DictionaryCardProps {
   name: string;
@@ -29,17 +30,24 @@ export function DictionaryCard({ name, rootsCount, onPress, onInfoPress }: Dicti
         <View style={styles.info}>
           <Text style={[styles.name, { color: theme.colors.text, textAlign: 'right' }]}>{name}</Text>
           <Text style={[styles.count, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-            {rootsCount.toLocaleString('ar-SA')} {t('dictionaries.rootsCount')}
+            {t('dictionaries.rootsCount')}: {rootsCount.toLocaleString('ar-SA')}
           </Text>
         </View>
         <Pressable
-          style={[styles.infoButton, { backgroundColor: theme.colors.primary }]}
+          style={({ pressed }) => [
+            styles.infoButton,
+            {
+              backgroundColor: pressed ? theme.colors.primary + '20' : theme.colors.card,
+              borderColor: theme.colors.primary,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
           onPress={e => {
             e.stopPropagation();
             onInfoPress();
           }}
         >
-          <Text style={[styles.infoButtonText, { color: theme.colors.background }]}>ℹ</Text>
+          <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary} />
         </Pressable>
       </View>
     </Pressable>
@@ -69,15 +77,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   infoButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
-  },
-  infoButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    borderWidth: 2,
   },
 });

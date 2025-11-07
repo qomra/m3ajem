@@ -73,12 +73,12 @@ export default function DictionaryDetail() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
-          <Text style={[styles.title, { color: theme.colors.text, textAlign: 'right' }]} numberOfLines={1}>
-            {dictionaryName}
-          </Text>
           <Pressable style={styles.backButton} onPress={handleBackPress}>
             <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
           </Pressable>
+          <Text style={[styles.title, { color: theme.colors.text, textAlign: 'right' }]} numberOfLines={1}>
+            {dictionaryName}
+          </Text>
         </View>
 
         <View style={styles.searchContainer}>
@@ -136,11 +136,11 @@ const styles = StyleSheet.create({
   },
   headerTop: {
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   backButton: {
     padding: 4,
-    marginLeft: 12,
   },
   backButtonText: {
     fontSize: 28,

@@ -41,7 +41,7 @@
     "rootsCount": "عدد المواد",
     "enterKeyword": "ادخل كلمة مفتاحية للبحث عن المواد",
     "searchResults": "نتائج البحث",
-    "root": "المادة",
+    "root": "الجذر",
     "definition": "التعريف",
     "dictionaryName": "اسم المعجم",
     "descriptions": {
@@ -61,6 +61,7 @@
     "groupedByRoot": "مجمعة بالجذر",
     "ungrouped": "غير مجمعة",
     "reverseSearch": "البحث العكسي",
+    "rhymeSearch": "بحث القافية",
     "reverseSearchHint": "البحث عن الكلمات التي تنتهي بالنص المدخل",
     "wordsInRoot": "كلمة",
     "relatedWords": "كلمات ذات صلة",
