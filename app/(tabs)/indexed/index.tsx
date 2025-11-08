@@ -21,15 +21,6 @@ function IndexedContent() {
   const processedWords = useDictionaryStore(state => state.processedWords);
   const processedRoots = useDictionaryStore(state => state.processedRoots);
   const isLoadingIndex = useDictionaryStore(state => state.isLoadingIndex);
-  const loadIndex = useDictionaryStore(state => state.loadIndex);
-
-  // Load index data when component mounts (if not already loaded)
-  useEffect(() => {
-    if (processedWords.length === 0 && !isLoadingIndex) {
-      console.log('[IndexedContent] Loading index data...');
-      loadIndex();
-    }
-  }, []);
 
   // Helper: Remove diacritics for search matching
   const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');

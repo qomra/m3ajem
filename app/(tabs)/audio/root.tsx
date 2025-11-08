@@ -342,6 +342,7 @@ const InfoCard = React.memo(({ root, dictionaryName }: { root: string; dictionar
         </Text>
       </View>
       {/* Sort and Filter Info */}
+      <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
       <View style={styles.filterInfoRow}>
         <Text style={[styles.filterInfoText, { color: theme.colors.textSecondary }]}>
           {t('common.filter')}: <Text style={{ color: theme.colors.text }}>{t(`audio.${currentFilter === 'all' ? 'all' : currentFilter === 'downloaded' ? 'downloaded' : 'notDownloaded'}`)}</Text>

@@ -264,21 +264,36 @@ export default function WordDetailScreen() {
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-          <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
-            <View style={styles.headerActions} />
-            <Pressable style={styles.backButton} onPress={handleBackPress}>
-              <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-            </Pressable>
-          </View>
-        </View>
+        <WordHeader
+          onBackPress={handleBackPress}
+          highlightEnabled={highlightEnabled}
+          onToggleHighlight={() => setHighlightEnabled(!highlightEnabled)}
+          relatedWordsCount={relatedWords.length}
+          onShowRelatedWords={() => setShowRelatedWords(!showRelatedWords)}
+        />
 
         <View style={styles.staticInfo}>
-          <View style={[styles.wordContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.wordLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-              {t('indexed.word')}
-            </Text>
-            <Text style={[styles.wordText, { color: theme.colors.primary, textAlign: 'center' }]}>{word || ''}</Text>
+          <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoValue, { color: theme.colors.primary, fontWeight: 'bold' }]}> {word || ''}</Text>
+              <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+                {t('indexed.word')}:
+              </Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoValue, { color: theme.colors.text }]}> {root || ''}</Text>
+              <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+                {t('dictionaries.root')}:
+              </Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoValue, { color: theme.colors.text }]}> {dictionaryName || ''}</Text>
+              <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+                {t('dictionaries.dictionaryName')}:
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -379,20 +394,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  wordContainer: {
+  infoCard: {
     borderRadius: 12,
     borderWidth: 1,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
   },
-  wordLabel: {
+  infoLabel: {
     fontSize: 14,
-    marginBottom: 8,
   },
-  wordText: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
   },
   content: {
     flex: 1,
