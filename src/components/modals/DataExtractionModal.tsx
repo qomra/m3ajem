@@ -5,7 +5,6 @@ import {
   Modal,
   Pressable,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useTheme, useTranslation } from '@hooks';
@@ -19,9 +18,6 @@ interface DataExtractionModalProps {
   onAgree: () => void;
   onCancel: () => void;
 }
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PROGRESS_BAR_WIDTH = SCREEN_WIDTH - 80;
 
 export function DataExtractionModal({
   visible,
@@ -57,7 +53,7 @@ export function DataExtractionModal({
 
   const progressBarWidth = progressWidth.interpolate({
     inputRange: [0, 100],
-    outputRange: [0, PROGRESS_BAR_WIDTH],
+    outputRange: ['0%', '100%'],
   });
 
   return (

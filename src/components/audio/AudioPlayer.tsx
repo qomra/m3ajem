@@ -1,14 +1,13 @@
-import { View, Text, StyleSheet, Pressable, useMemo } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 import { useAudioStore } from '@store/audioStore';
 import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMemo, useCallback } from 'react';
 
 export function AudioPlayer() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
 
   const currentWord = useAudioStore(state => state.currentWord);
   const isPlaying = useAudioStore(state => state.isPlaying);
@@ -52,21 +51,23 @@ export function AudioPlayer() {
     return false;
   }, [currentIndex, currentRootsList, downloadedFiles]);
 
-  const handlePlayPause = async () => {
+  const handlePlayPause = useCallback(async () => {
     if (isPlaying) {
       await pauseAudio();
     } else {
-      await playAudio(currentWord);
+      if (currentWord) {
+        await playAudio(currentWord);
+      }
     }
-  };
+  }, [isPlaying, pauseAudio, playAudio, currentWord]);
 
-  const handleNext = async () => {
+  const handleNext = useCallback(async () => {
     await playNext();
-  };
+  }, [playNext]);
 
-  const handlePrevious = async () => {
+  const handlePrevious = useCallback(async () => {
     await playPrevious();
-  };
+  }, [playPrevious]);
 
   const formatTime = useMemo(() => {
     return (millis: number) => {
