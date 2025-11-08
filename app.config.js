@@ -12,6 +12,7 @@ module.exports = {
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
+    newArchEnabled: true,
     assetBundlePatterns: [
       "**/*"
     ],

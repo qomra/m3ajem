@@ -118,14 +118,37 @@ Total bundle: **~26 MB**
 ## 🛠️ Scripts
 
 ```bash
-npm start          # Start Expo dev server
-npm run android    # Run on Android
-npm run ios        # Run on iOS
-npm run web        # Run on web
-npm run lint       # Lint code
-npm run lint:fix   # Fix linting issues
-npm run type-check # TypeScript type checking
+npm start                # Start Expo dev server
+npm run android          # Run on Android
+npm run ios              # Run on iOS
+npm run web              # Run on web
+npm run build:ios        # Build iOS project (prebuild + RTL fix + pods + open Xcode)
+npm run build:ios-no-xcode  # Build iOS without opening Xcode
+npm run lint             # Lint code
+npm run lint:fix         # Fix linting issues
+npm run type-check       # TypeScript type checking
 ```
+
+### 🍎 iOS Build Process
+
+For iOS development, use the automated build script instead of manual prebuild:
+
+```bash
+# Automated iOS build (recommended)
+npm run build:ios
+```
+
+This script automatically:
+1. Cleans and rebuilds iOS project (`expo prebuild --clean`)
+2. Configures RTL support for Arabic
+3. Sets Arabic as primary localization
+4. Installs CocoaPods dependencies
+5. Opens Xcode workspace
+
+Then in Xcode:
+1. Select your device/simulator
+2. Click Run (⌘R)
+3. Test on device
 
 ## 📝 License
 
