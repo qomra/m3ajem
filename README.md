@@ -118,15 +118,16 @@ Total bundle: **~26 MB**
 ## 🛠️ Scripts
 
 ```bash
-npm start                # Start Expo dev server
-npm run android          # Run on Android
-npm run ios              # Run on iOS
-npm run web              # Run on web
-npm run build:ios        # Build iOS project (prebuild + RTL fix + pods + open Xcode)
+npm start                   # Start Expo dev server
+npm run android             # Run on Android
+npm run ios                 # Run on iOS
+npm run web                 # Run on web
+npm run build:ios           # Build iOS (Debug) + configure signing + open Xcode
+npm run build:ios-release   # Build iOS (Release) + configure signing + open Xcode
 npm run build:ios-no-xcode  # Build iOS without opening Xcode
-npm run lint             # Lint code
-npm run lint:fix         # Fix linting issues
-npm run type-check       # TypeScript type checking
+npm run lint                # Lint code
+npm run lint:fix            # Fix linting issues
+npm run type-check          # TypeScript type checking
 ```
 
 ### 🍎 iOS Build Process
@@ -134,21 +135,31 @@ npm run type-check       # TypeScript type checking
 For iOS development, use the automated build script instead of manual prebuild:
 
 ```bash
-# Automated iOS build (recommended)
+# Debug build (default, for development)
 npm run build:ios
+
+# Release build (optimized, for testing production builds)
+npm run build:ios-release
 ```
 
 This script automatically:
 1. Cleans and rebuilds iOS project (`expo prebuild --clean`)
-2. Configures RTL support for Arabic
-3. Sets Arabic as primary localization
-4. Installs CocoaPods dependencies
-5. Opens Xcode workspace
+2. Patches AppDelegate.swift with RTL support
+3. Configures Info.plist (CFBundleDevelopmentRegion: ar)
+4. Sets Arabic as primary localization
+5. Installs CocoaPods dependencies
+6. Configures automatic code signing
+7. Sets up Xcode schemes
+8. Opens Xcode workspace
 
 Then in Xcode:
-1. Select your device/simulator
-2. Click Run (⌘R)
-3. Test on device
+1. **Set your Development Team** (Signing & Capabilities tab)
+2. Select your device/simulator
+3. For Release builds: Edit Scheme → Run → Build Configuration → Release
+4. Click Run (⌘R)
+5. Test on device
+
+**Note:** The first time you build, you'll need to set your Apple Developer Team in Xcode under the "Signing & Capabilities" tab. The script configures automatic signing, so Xcode will handle provisioning profiles automatically.
 
 ## 📝 License
 
