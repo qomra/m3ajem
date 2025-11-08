@@ -50,12 +50,8 @@ export default function RootDetail() {
         </Pressable>
       </View>
 
-      {/* Content */}
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Fixed Content */}
+      <View style={styles.fixedContent}>
         {/* Root */}
         <View style={[styles.rootContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <Text style={[styles.rootLabel, { color: theme.colors.textSecondary }]}>
@@ -71,8 +67,14 @@ export default function RootDetail() {
           </Text>
           <Text style={[styles.infoText, { color: theme.colors.text, textAlign: 'right' }]}>{dictionaryName}</Text>
         </View>
+      </View>
 
-        {/* Definition */}
+      {/* Scrollable Definition */}
+      <ScrollView
+        style={styles.definitionScrollView}
+        contentContainerStyle={styles.definitionScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.definitionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
             {t('dictionaries.definition')}
@@ -103,11 +105,16 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
-  content: {
+  fixedContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  definitionScrollView: {
     flex: 1,
   },
-  contentContainer: {
-    padding: 20,
+  definitionScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   rootContainer: {
     borderRadius: 12,

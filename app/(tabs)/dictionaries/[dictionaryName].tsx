@@ -72,7 +72,7 @@ export default function DictionaryDetail() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
+        <View style={[styles.headerTop, { flexDirection: 'row' }]}>
           <Pressable style={styles.backButton} onPress={handleBackPress}>
             <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
           </Pressable>
