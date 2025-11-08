@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
 import { useTheme, useTranslation } from '@hooks';
 import { useAudioStore } from '@store/audioStore';
 import { getFlexDirection } from '@/utils/rtl';
@@ -19,6 +20,7 @@ export function AudioRootCard({
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const [isDisabled, setIsDisabled] = useState(false);
 
   const isDownloaded = useAudioStore(state => state.isDownloaded(root));
   const downloadProgress = useAudioStore(state => state.downloadProgress[root]);
@@ -54,8 +56,11 @@ export function AudioRootCard({
   };
 
   const handleCardPress = () => {
+    if (isDisabled) return;
+    setIsDisabled(true);
+
     router.push({
-      pathname: '/(tabs)/audio/[root]',
+      pathname: '/(tabs)/audio/root',
       params: { root, dictionaryName },
     });
   };
@@ -69,7 +74,7 @@ export function AudioRootCard({
         borderWidth: isCurrentWord ? 2 : 1,
       }
     ]}>
-      <Pressable onPress={handleCardPress}>
+      <Pressable onPress={handleCardPress} disabled={isDisabled}>
         <View style={[styles.header, { flexDirection: getFlexDirection() }]}>
           <View style={styles.info}>
             <Text style={[styles.rootText, { color: theme.colors.text }]}>{root}</Text>

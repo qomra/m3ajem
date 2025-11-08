@@ -358,15 +358,24 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       loadingWord = null;
 
       // Update playback status
+      // OPTIMIZATION: Throttle position updates to every 100ms to reduce re-renders
+      let lastPositionUpdate = 0;
       sound.setOnPlaybackStatusUpdate(async (status) => {
         if (status.isLoaded) {
           // Only update state if values actually changed to prevent unnecessary re-renders
           const currentState = get();
           const updates: any = {};
 
-          if (currentState.playbackPosition !== status.positionMillis) {
+          // Throttle position updates to reduce re-render frequency
+          const now = Date.now();
+          const positionChanged = currentState.playbackPosition !== status.positionMillis;
+          const shouldUpdatePosition = positionChanged && (now - lastPositionUpdate) >= 100;
+
+          if (shouldUpdatePosition) {
             updates.playbackPosition = status.positionMillis;
+            lastPositionUpdate = now;
           }
+
           if (currentState.playbackDuration !== (status.durationMillis || 0)) {
             updates.playbackDuration = status.durationMillis || 0;
           }

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useMemo } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 import { useAudioStore } from '@store/audioStore';
 import { getFlexDirection } from '@/utils/rtl';
@@ -28,28 +28,29 @@ export function AudioPlayer() {
   if (!currentWord) return null;
 
   // Navigation state - check for playable (downloaded) items
-  const currentIndex = currentRootsList.indexOf(currentWord);
+  // MEMOIZED: These loops are expensive and should only run when dependencies change
+  const currentIndex = useMemo(
+    () => currentRootsList.indexOf(currentWord),
+    [currentRootsList, currentWord]
+  );
 
-  // Check if there's a next downloaded item
-  let hasNextPlayable = false;
-  for (let i = currentIndex + 1; i < currentRootsList.length; i++) {
-    if (downloadedFiles[currentRootsList[i]]) {
-      hasNextPlayable = true;
-      break;
+  const canGoNext = useMemo(() => {
+    for (let i = currentIndex + 1; i < currentRootsList.length; i++) {
+      if (downloadedFiles[currentRootsList[i]]) {
+        return true;
+      }
     }
-  }
+    return false;
+  }, [currentIndex, currentRootsList, downloadedFiles]);
 
-  // Check if there's a previous downloaded item
-  let hasPreviousPlayable = false;
-  for (let i = currentIndex - 1; i >= 0; i--) {
-    if (downloadedFiles[currentRootsList[i]]) {
-      hasPreviousPlayable = true;
-      break;
+  const canGoPrevious = useMemo(() => {
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      if (downloadedFiles[currentRootsList[i]]) {
+        return true;
+      }
     }
-  }
-
-  const canGoNext = hasNextPlayable;
-  const canGoPrevious = hasPreviousPlayable;
+    return false;
+  }, [currentIndex, currentRootsList, downloadedFiles]);
 
   const handlePlayPause = async () => {
     if (isPlaying) {
@@ -67,14 +68,19 @@ export function AudioPlayer() {
     await playPrevious();
   };
 
-  const formatTime = (millis: number) => {
-    const totalSeconds = Math.floor(millis / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+  const formatTime = useMemo(() => {
+    return (millis: number) => {
+      const totalSeconds = Math.floor(millis / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+  }, []);
 
-  const progress = playbackDuration > 0 ? (playbackPosition / playbackDuration) * 100 : 0;
+  const progress = useMemo(
+    () => (playbackDuration > 0 ? (playbackPosition / playbackDuration) * 100 : 0),
+    [playbackPosition, playbackDuration]
+  );
 
   return (
     <View

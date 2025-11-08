@@ -15,16 +15,15 @@ export function WordDisplay({ word, root, dictionaryName, currentInstance, total
 
   return (
     <>
-      {/* Word Display */}
-      <View style={[styles.wordContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-        <Text style={[styles.wordLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-          {t('indexed.word')}
-        </Text>
-        <Text style={[styles.wordText, { color: theme.colors.primary, textAlign: 'center' }]}>{word}</Text>
-      </View>
-
-      {/* Root & Dictionary Info */}
+      {/* Combined Word, Root & Dictionary Info */}
       <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View style={styles.infoRow}>
+          <Text style={[styles.infoValue, { color: theme.colors.primary, fontWeight: 'bold' }]}> {word}</Text>
+          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+            {t('indexed.word')}:
+          </Text>
+        </View>
+        <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
         <View style={styles.infoRow}>
           <Text style={[styles.infoValue, { color: theme.colors.text }]}> {root}</Text>
           <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>

@@ -105,6 +105,7 @@ export default function DictionariesList() {
           <FlatList
             data={dictionaries}
             keyExtractor={item => item.name}
+            keyboardShouldPersistTaps='handled'
             renderItem={({ item }) => (
               <DictionaryCard
                 name={item.name}

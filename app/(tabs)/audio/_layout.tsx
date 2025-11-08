@@ -9,8 +9,23 @@ export default function AudioLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.colors.background },
-        animation: 'slide_from_left', // RTL: slide from left
+        animation: 'slide_from_left',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: false,
       }}
-    />
+    >
+      <Stack.Screen
+        name="index"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="root"
+        options={{
+          gestureEnabled: true,
+        }}
+      />
+    </Stack>
   );
 }

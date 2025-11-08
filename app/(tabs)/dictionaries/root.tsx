@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, StatusBar, ActivityIndicator, InteractionManager } from 'react-native';
+import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
@@ -12,32 +13,21 @@ export default function RootDetail() {
 
   const { searchRootInDictionary } = useDictionaryStore();
 
+  const [definition, setDefinition] = useState<string>('');
+
+  // Load definition ONLY after interactions complete (navigation animation done)
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      const def = searchRootInDictionary(dictionaryName || '', root || '');
+      setDefinition(def || '');
+    });
+
+    return () => task.cancel();
+  }, [root, dictionaryName, searchRootInDictionary]);
+
   const handleBackPress = () => {
     router.back();
   };
-
-  const definition = searchRootInDictionary(dictionaryName || '', root || '');
-
-  if (!definition) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
-
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-          <Pressable style={styles.backButton} onPress={handleBackPress}>
-            <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-            {t('errors.notFound')}
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -70,18 +60,26 @@ export default function RootDetail() {
       </View>
 
       {/* Scrollable Definition */}
-      <ScrollView
-        style={styles.definitionScrollView}
-        contentContainerStyle={styles.definitionScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.definitionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-            {t('dictionaries.definition')}
-          </Text>
-          <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>{definition}</Text>
+      {!definition ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.definitionScrollView}
+          contentContainerStyle={styles.definitionScrollContent}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          scrollEventThrottle={16}
+        >
+          <View style={[styles.definitionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
+              {t('dictionaries.definition')}
+            </Text>
+            <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>{definition}</Text>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }

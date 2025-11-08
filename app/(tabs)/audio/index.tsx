@@ -6,8 +6,10 @@ import { useDictionaryStore } from '@store/dictionaryStore';
 import { AudioHeader } from '@components/audio/AudioHeader';
 import { AudioRootCard } from '@components/audio/AudioRootCard';
 import { AudioPlayer } from '@components/audio/AudioPlayer';
+import { usePathname } from 'expo-router';
 
 export default function AudioTab() {
+  const pathname = usePathname();
   const { t } = useTranslation();
   const theme = useTheme();
   const flatListRef = useRef<FlatList>(null);
@@ -101,8 +103,13 @@ export default function AudioTab() {
     });
   }, [searchedRoots, filterDownloaded, isDownloaded]);
 
-  // Apply sort
+  // Apply sort - ONLY when on main list to avoid expensive calculations
   const sortedRoots = useMemo(() => {
+    // Skip expensive sorting when not on main list
+    if (pathname !== '/audio') {
+      return [];
+    }
+
     const sorted = [...filteredRoots];
 
     if (sortBy === 'alphabetical') {
@@ -129,55 +136,63 @@ export default function AudioTab() {
     }
 
     return sorted;
-  }, [filteredRoots, sortBy, randomSeed, searchRootInDictionary]);
+  }, [filteredRoots, sortBy, randomSeed, searchRootInDictionary, pathname]);
+
+  // Only render the expensive FlatList when on the main audio list view
+  const isOnMainList = pathname === '/audio';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-      <AudioHeader
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        sortBy={sortBy}
-        onSortChange={handleSortChange}
-        filterDownloaded={filterDownloaded}
-        onFilterChange={setFilterDownloaded}
-        totalCount={allRootsWithAudio.length}
-        filteredCount={sortedRoots.length}
-      />
-
-      <FlatList
-        ref={flatListRef}
-        data={sortedRoots}
-        keyExtractor={(item) => `${item.dictionaryName}-${item.root}`}
-        renderItem={({ item }) => (
-          <AudioRootCard
-            root={item.root}
-            dictionaryName={item.dictionaryName}
-            isCurrentlyPlaying={currentWord === item.root}
+      {isOnMainList && (
+        <>
+          <AudioHeader
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            sortBy={sortBy}
+            onSortChange={handleSortChange}
+            filterDownloaded={filterDownloaded}
+            onFilterChange={setFilterDownloaded}
+            totalCount={allRootsWithAudio.length}
+            filteredCount={sortedRoots.length}
           />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        onScrollToIndexFailed={(info) => {
-          // Handle scroll failure gracefully
-          setTimeout(() => {
-            flatListRef.current?.scrollToOffset({
-              offset: info.averageItemLength * info.index,
-              animated: true,
-            });
-          }, 100);
-        }}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              {t('common.noResults')}
-            </Text>
-          </View>
-        }
-      />
 
-      {currentWord && <AudioPlayer />}
+          <FlatList
+            ref={flatListRef}
+            data={sortedRoots}
+            keyExtractor={(item) => `${item.dictionaryName}-${item.root}`}
+            keyboardShouldPersistTaps='handled'
+            renderItem={({ item }) => (
+              <AudioRootCard
+                root={item.root}
+                dictionaryName={item.dictionaryName}
+                isCurrentlyPlaying={currentWord === item.root}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            onScrollToIndexFailed={(info) => {
+              // Handle scroll failure gracefully
+              setTimeout(() => {
+                flatListRef.current?.scrollToOffset({
+                  offset: info.averageItemLength * info.index,
+                  animated: true,
+                });
+              }, 100);
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                  {t('common.noResults')}
+                </Text>
+              </View>
+            }
+          />
+
+          {currentWord && <AudioPlayer />}
+        </>
+      )}
     </View>
   );
 }

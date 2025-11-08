@@ -120,6 +120,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
             <FlatList
               data={searchResults}
               keyExtractor={(item, index) => `${item.root}-${item.dictionaryName}-${index}`}
+              keyboardShouldPersistTaps='handled'
               renderItem={({ item }) => (
                 <Pressable
                   style={({ pressed }) => [

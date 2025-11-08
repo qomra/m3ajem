@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, InteractionManager, ActivityIndicator } from 'react-native';
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
@@ -31,11 +31,19 @@ export default function WordDetailScreen() {
   const [highlightEnabled, setHighlightEnabled] = useState(true);
   const [showRelatedWords, setShowRelatedWords] = useState(false);
   const [currentOccurrenceIndex, setCurrentOccurrenceIndex] = useState(0);
+  const [definition, setDefinition] = useState<string>('');
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Get the definition for this root
-  const definition = searchRootInDictionary(dictionaryName || '', root || '');
+  // Load definition ONLY after interactions complete (navigation animation done)
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      const def = searchRootInDictionary(dictionaryName || '', root || '');
+      setDefinition(def || '');
+    });
+
+    return () => task.cancel();
+  }, [root, dictionaryName, searchRootInDictionary]);
 
   // Handle word position found from DefinitionCard
   const handleWordPositionFound = useCallback((y: number) => {
@@ -250,23 +258,32 @@ export default function WordDetailScreen() {
     router.setParams({ word: relatedWord });
   };
 
+  // Show loading state while definition is being fetched
   if (!definition) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-        <View
-          style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}
-        >
-          <Pressable style={styles.backButton} onPress={handleBackPress}>
-            <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-          </Pressable>
+        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+          <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
+            <View style={styles.headerActions} />
+            <Pressable style={styles.backButton} onPress={handleBackPress}>
+              <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-            {t('errors.notFound')}
-          </Text>
+        <View style={styles.staticInfo}>
+          <View style={[styles.wordContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.wordLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
+              {t('indexed.word')}
+            </Text>
+            <Text style={[styles.wordText, { color: theme.colors.primary, textAlign: 'center' }]}>{word || ''}</Text>
+          </View>
+        </View>
+
+        <View style={styles.loadingContainerFull}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </View>
     );
@@ -344,6 +361,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomWidth: 1,
   },
+  headerTop: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerActions: {
+    flex: 1,
+  },
   backButton: {
     padding: 4,
   },
@@ -355,12 +379,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
+  wordContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  wordLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  wordText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
   content: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    padding: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainerFull: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   centerContainer: {
     flex: 1,

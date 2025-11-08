@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, StatusBar, Pressable, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, StatusBar, Pressable, ActivityIndicator, InteractionManager } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { useTranslation, useTheme } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
 import { useAudioStore } from '@store/audioStore';
@@ -8,22 +8,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { getFlexDirection } from '@/utils/rtl';
 
 // Audio controls as a separate component to isolate re-renders from playback updates
-const AudioControlsSection = ({ root, dictionaryName }: { root: string; dictionaryName: string }) => {
+const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: string; dictionaryName: string }) => {
   const { t } = useTranslation();
   const theme = useTheme();
 
+  // Individual selectors - stable and efficient
   const currentWord = useAudioStore(state => state.currentWord);
   const isPlaying = useAudioStore(state => state.isPlaying);
   const repeatMode = useAudioStore(state => state.repeatMode);
   const playbackPosition = useAudioStore(state => state.playbackPosition);
   const playbackDuration = useAudioStore(state => state.playbackDuration);
-  const isDownloaded = useAudioStore(state => state.isDownloaded);
+  const downloadProgress = useAudioStore(state => state.downloadProgress[root]);
   const currentRootsList = useAudioStore(state => state.currentRootsList);
   const downloadedFiles = useAudioStore(state => state.downloadedFiles);
-  const currentSortBy = useAudioStore(state => state.currentSortBy);
-  const currentFilter = useAudioStore(state => state.currentFilter);
-  const downloadProgress = useAudioStore(state => state.downloadProgress[root]);
 
+  const isDownloaded = useAudioStore(state => state.isDownloaded);
   const playAudio = useAudioStore(state => state.playAudio);
   const pauseAudio = useAudioStore(state => state.pauseAudio);
   const stopAudio = useAudioStore(state => state.stopAudio);
@@ -37,29 +36,41 @@ const AudioControlsSection = ({ root, dictionaryName }: { root: string; dictiona
   const rootDownloaded = isDownloaded(root);
   const isDownloading = typeof downloadProgress === 'number';
 
-  const currentIndex = currentRootsList.indexOf(root);
-  const canGoNextRoot = currentIndex !== -1 && currentIndex < currentRootsList.length - 1;
-  const canGoPreviousRoot = currentIndex > 0;
+  // MEMOIZED: These calculations are expensive and should only run when dependencies change
+  const currentIndex = useMemo(
+    () => currentRootsList.indexOf(root),
+    [currentRootsList, root]
+  );
 
-  let canGoNextPlayable = false;
-  if (currentIndex !== -1) {
+  const canGoNextRoot = useMemo(
+    () => currentIndex !== -1 && currentIndex < currentRootsList.length - 1,
+    [currentIndex, currentRootsList.length]
+  );
+
+  const canGoPreviousRoot = useMemo(
+    () => currentIndex > 0,
+    [currentIndex]
+  );
+
+  const canGoNextPlayable = useMemo(() => {
+    if (currentIndex === -1) return false;
     for (let i = currentIndex + 1; i < currentRootsList.length; i++) {
       if (downloadedFiles[currentRootsList[i]]) {
-        canGoNextPlayable = true;
-        break;
+        return true;
       }
     }
-  }
+    return false;
+  }, [currentIndex, currentRootsList, downloadedFiles]);
 
-  let canGoPreviousPlayable = false;
-  if (currentIndex !== -1) {
+  const canGoPreviousPlayable = useMemo(() => {
+    if (currentIndex === -1) return false;
     for (let i = currentIndex - 1; i >= 0; i--) {
       if (downloadedFiles[currentRootsList[i]]) {
-        canGoPreviousPlayable = true;
-        break;
+        return true;
       }
     }
-  }
+    return false;
+  }, [currentIndex, currentRootsList, downloadedFiles]);
 
   const handlePlayPause = async () => {
     if (isThisRootPlaying) {
@@ -134,14 +145,19 @@ const AudioControlsSection = ({ root, dictionaryName }: { root: string; dictiona
     }
   };
 
-  const formatTime = (millis: number) => {
-    const totalSeconds = Math.floor(millis / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+  const formatTime = useMemo(() => {
+    return (millis: number) => {
+      const totalSeconds = Math.floor(millis / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+  }, []);
 
-  const progress = playbackDuration > 0 ? (playbackPosition / playbackDuration) * 100 : 0;
+  const progress = useMemo(
+    () => (playbackDuration > 0 ? (playbackPosition / playbackDuration) * 100 : 0),
+    [playbackPosition, playbackDuration]
+  );
 
   return (
     <View style={[styles.audioControlsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -301,10 +317,10 @@ const AudioControlsSection = ({ root, dictionaryName }: { root: string; dictiona
       </View>
     </View>
   );
-};
+});
 
 // Info card component - separate from audio controls
-const InfoCard = ({ dictionaryName }: { dictionaryName: string }) => {
+const InfoCard = React.memo(({ root, dictionaryName }: { root: string; dictionaryName: string }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const currentSortBy = useAudioStore(state => state.currentSortBy);
@@ -313,7 +329,14 @@ const InfoCard = ({ dictionaryName }: { dictionaryName: string }) => {
   return (
     <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
       <View style={styles.infoRow}>
-        <Text style={[styles.infoValue, { color: theme.colors.text }]}>  {dictionaryName}</Text>
+        <Text style={[styles.infoValue, { color: theme.colors.primary, fontWeight: 'bold' }]}> {root}</Text>
+        <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+          {t('dictionaries.root')}:
+        </Text>
+      </View>
+      <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+      <View style={styles.infoRow}>
+        <Text style={[styles.infoValue, { color: theme.colors.text }]}> {dictionaryName}</Text>
         <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
           {t('dictionaries.dictionaryName')}:
         </Text>
@@ -330,16 +353,27 @@ const InfoCard = ({ dictionaryName }: { dictionaryName: string }) => {
       </View>
     </View>
   );
-};
+});
 
 export default function AudioRootDetailPage() {
-  const params = useLocalSearchParams<{ root: string; dictionaryName: string }>();
-  const router = useRouter();
-  const { t } = useTranslation();
   const theme = useTheme();
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { root, dictionaryName } = useLocalSearchParams<{ root: string; dictionaryName: string }>();
 
-  const root = params.root;
-  const dictionaryName = params.dictionaryName;
+  const { searchRootInDictionary } = useDictionaryStore();
+
+  const [definition, setDefinition] = useState<string>('');
+
+  // Load definition ONLY after interactions complete (navigation animation done)
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      const def = searchRootInDictionary(dictionaryName || '', root || '');
+      setDefinition(def || '');
+    });
+
+    return () => task.cancel();
+  }, [root, dictionaryName, searchRootInDictionary]);
 
   // When entering root view, clear the list view player and stop any playing audio
   useEffect(() => {
@@ -348,26 +382,12 @@ export default function AudioRootDetailPage() {
       if (currentState.isPlaying || currentState.currentWord) {
         currentState.stopAudio();
       }
-      useAudioStore.setState({ currentWord: null });
     }
   }, [root]);
 
-  const { searchRootInDictionary } = useDictionaryStore();
-
-  const definition = root && dictionaryName ? searchRootInDictionary(dictionaryName, root) : null;
-
-  if (!definition) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-            {t('errors.notFound')}
-          </Text>
-        </View>
-      </View>
-    );
-  }
+  const handleBackPress = () => {
+    router.back();
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -375,23 +395,15 @@ export default function AudioRootDetailPage() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={handleBackPress}>
           <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
         </Pressable>
       </View>
 
       {/* Fixed Content - Root, Info, and Audio Controls */}
       <View style={styles.fixedContent}>
-        {/* Root Display */}
-        <View style={[styles.rootContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.rootLabel, { color: theme.colors.textSecondary }]}>
-            {t('dictionaries.root')}
-          </Text>
-          <Text style={[styles.rootText, { color: theme.colors.primary }]}>{root}</Text>
-        </View>
-
-        {/* Dictionary Info */}
-        {dictionaryName && <InfoCard dictionaryName={dictionaryName} />}
+        {/* Root & Dictionary Info */}
+        {root && dictionaryName && <InfoCard root={root} dictionaryName={dictionaryName} />}
 
         {/* Audio Controls */}
         {root && dictionaryName && (
@@ -399,18 +411,29 @@ export default function AudioRootDetailPage() {
         )}
       </View>
 
-      {/* Scrollable Definition Content */}
-      <ScrollView
-        style={styles.definitionScrollView}
-        contentContainerStyle={styles.definitionContentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.definitionCard, { backgroundColor: theme.colors.card }]}>
-          <Text style={[styles.definitionText, { color: theme.colors.text }]}>
-            {definition}
-          </Text>
+      {/* Scrollable Definition */}
+      {!definition ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.definitionScrollView}
+          contentContainerStyle={styles.definitionScrollContent}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          scrollEventThrottle={16}
+        >
+          <View style={[styles.definitionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
+              {t('dictionaries.definition')}
+            </Text>
+            <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>
+              {definition}
+            </Text>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -435,28 +458,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
-  rootContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  rootLabel: {
-    fontSize: 13,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  rootText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
   infoCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
   },
@@ -472,8 +477,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  fixedContent: {
-    padding: 12,
+  divider: {
+    height: 1,
+    marginVertical: 12,
   },
   filterInfoRow: {
     flexDirection: 'row',
@@ -587,19 +593,29 @@ const styles = StyleSheet.create({
   definitionScrollView: {
     flex: 1,
   },
-  definitionContentContainer: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+  definitionScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   definitionCard: {
     borderRadius: 12,
+    borderWidth: 1,
     padding: 20,
+    marginBottom: 16,
+  },
+  definitionLabel: {
+    fontSize: 14,
+    marginBottom: 12,
   },
   definitionText: {
     fontSize: 18,
     lineHeight: 32,
-    textAlign: 'right',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
   },
   errorContainer: {
     flex: 1,

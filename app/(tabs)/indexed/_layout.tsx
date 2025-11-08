@@ -9,6 +9,7 @@ export default function IndexedLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.colors.background },
+        animation: 'slide_from_left',
       }}
     />
   );

@@ -137,6 +137,7 @@ function IndexedContent() {
         <FlatList
           data={filteredGroupedWords}
           keyExtractor={item => `${item.dictionaryName}-${item.root}`}
+          keyboardShouldPersistTaps='handled'
           renderItem={({ item }) => (
             <RootCard
               root={item.root}
@@ -161,6 +162,7 @@ function IndexedContent() {
         <FlatList
           data={filteredWords}
           keyExtractor={(item, index) => `${item.word}-${item.root}-${index}`}
+          keyboardShouldPersistTaps='handled'
           renderItem={({ item }) => (
             <WordCard
               word={item.word}

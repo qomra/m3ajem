@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, FlatList, StatusBar } from 'react-native';
-import { useState, useMemo } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useState, useMemo, useRef, useCallback } from 'react';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStore';
 import { SearchBar } from '@components/common/SearchBar';
@@ -15,6 +15,16 @@ export default function DictionaryDetail() {
   const { dictionaries } = useDictionaryStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const disabledItemsRef = useRef<Set<string>>(new Set());
+  const [, forceUpdate] = useState({});
+
+  // Reset disabled items when screen comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      disabledItemsRef.current = new Set();
+      forceUpdate({});
+    }, [])
+  );
 
   // Find the dictionary
   const dictionary = useMemo(
@@ -40,7 +50,12 @@ export default function DictionaryDetail() {
     router.back();
   };
 
-  const handleRootPress = (root: string) => {
+  const handleRootPress = useCallback((root: string) => {
+    if (disabledItemsRef.current.has(root)) return;
+
+    disabledItemsRef.current.add(root);
+    forceUpdate({});
+
     router.push({
       pathname: '/(tabs)/dictionaries/root',
       params: {
@@ -48,7 +63,7 @@ export default function DictionaryDetail() {
         dictionaryName: dictionaryName || '',
       },
     });
-  };
+  }, [router, dictionaryName]);
 
   const handleClearSearch = () => {
     setSearchQuery('');
@@ -95,21 +110,26 @@ export default function DictionaryDetail() {
       <FlatList
         data={filteredRoots}
         keyExtractor={item => item}
-        renderItem={({ item }) => (
-          <Pressable
-            style={({ pressed }) => [
-              styles.rootCard,
-              {
-                backgroundColor: theme.colors.card,
-                borderColor: theme.colors.border,
-                opacity: pressed ? 0.7 : 1,
-              },
-            ]}
-            onPress={() => handleRootPress(item)}
-          >
-            <Text style={[styles.rootText, { color: theme.colors.text, textAlign: 'right' }]}>{item}</Text>
-          </Pressable>
-        )}
+        keyboardShouldPersistTaps='handled'
+        renderItem={({ item }) => {
+          const isDisabled = disabledItemsRef.current.has(item);
+          return (
+            <Pressable
+              style={({ pressed }) => [
+                styles.rootCard,
+                {
+                  backgroundColor: theme.colors.card,
+                  borderColor: theme.colors.border,
+                  opacity: pressed || isDisabled ? 0.7 : 1,
+                },
+              ]}
+              onPress={() => handleRootPress(item)}
+              disabled={isDisabled}
+            >
+              <Text style={[styles.rootText, { color: theme.colors.text, textAlign: 'right' }]}>{item}</Text>
+            </Pressable>
+          );
+        }}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
