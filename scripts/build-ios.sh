@@ -24,10 +24,14 @@ cd "$PROJECT_ROOT"
 echo -e "${BLUE}📦 Running expo prebuild with clean...${NC}"
 npx expo prebuild --platform ios --clean
 
-# Step 2: Fix RTL support in Info.plist
+# Step 2: Fix RTL support in Info.plist and AppDelegate
 echo -e "${BLUE}🔧 Configuring RTL support...${NC}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion ar" ios/maajm/Info.plist
-echo -e "${GREEN}✅ RTL configured${NC}"
+
+# Patch AppDelegate.swift using Python script
+python3 "$SCRIPT_DIR/patch-rtl.py" ios/maajm/AppDelegate.swift
+
+echo -e "${GREEN}✅ RTL configured in Info.plist and AppDelegate${NC}"
 
 # Step 3: Update CFBundleLocalizations to ensure Arabic is first
 echo -e "${BLUE}🌐 Configuring localization preferences...${NC}"

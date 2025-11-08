@@ -21,18 +21,15 @@ export default function RootLayout() {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // Check current RTL state
+    // Always force RTL on every app start to ensure persistence
+    // This must be called unconditionally, not just when !isRTL
+    I18nManager.allowRTL(true);
+    I18nManager.forceRTL(true);
+
     console.log('RTL Status:', {
       isRTL: I18nManager.isRTL,
       doLeftAndRightSwapInRTL: I18nManager.doLeftAndRightSwapInRTL,
     });
-
-    // Enable RTL layout for Arabic
-    if (!I18nManager.isRTL) {
-      I18nManager.allowRTL(true);
-      I18nManager.forceRTL(true);
-      console.log('RTL enabled - App needs restart');
-    }
 
     // Check if extraction is needed and load data if available
     const initializeApp = async () => {
