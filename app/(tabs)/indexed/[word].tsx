@@ -2,13 +2,12 @@ import { View, Text, StyleSheet, ScrollView, StatusBar, InteractionManager, Acti
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { WordHeader } from '@components/indexed/WordHeader';
 import { WordDisplay } from '@components/indexed/WordDisplay';
 import { DefinitionCard } from '@components/indexed/DefinitionCard';
 import { RelatedWordsPanel } from '@components/indexed/RelatedWordsPanel';
 import { NavigationBar } from '@components/indexed/NavigationBar';
-import { getFlexDirection } from '@/utils/rtl';
 import { Pressable } from 'react-native';
 
 export default function WordDetailScreen() {
@@ -23,37 +22,76 @@ export default function WordDetailScreen() {
     viewMode?: string;
   }>();
 
-  const { indexData, processedWords, processedWordsGrouped, searchRootInDictionary } = useDictionaryStore();
+  const { processedWords, searchRootInDictionary, loadAllWords } = useDictionaryStore();
 
-  // Use the appropriate word list based on view mode
-  const activeWordList = viewMode === 'grouped' ? processedWordsGrouped : processedWords;
+  // Load words for navigation if not already loaded
+  useEffect(() => {
+    if (processedWords.length === 0) {
+      loadAllWords();
+    }
+  }, [processedWords.length, loadAllWords]);
+
+  // Use processedWords for navigation
+  const activeWordList = processedWords;
 
   const [highlightEnabled, setHighlightEnabled] = useState(true);
   const [showRelatedWords, setShowRelatedWords] = useState(false);
   const [currentOccurrenceIndex, setCurrentOccurrenceIndex] = useState(0);
   const [definition, setDefinition] = useState<string>('');
+  const [highlightReady, setHighlightReady] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Load definition ONLY after interactions complete (navigation animation done)
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      const def = searchRootInDictionary(dictionaryName || '', root || '');
+    const task = InteractionManager.runAfterInteractions(async () => {
+      const def = await searchRootInDictionary(dictionaryName || '', root || '');
       setDefinition(def || '');
     });
 
     return () => task.cancel();
   }, [root, dictionaryName, searchRootInDictionary]);
 
+  // Wait for highlighting to be ready before showing content
+  // Only delay on initial load or when changing roots
+  useEffect(() => {
+    if (definition && processedWords.length > 0) {
+      // Mark as ready immediately - highlighting is computed synchronously in useMemo
+      setHighlightReady(true);
+    } else {
+      setHighlightReady(false);
+    }
+  }, [definition, word, processedWords.length]);
+
+  const currentScrollYRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+
   // Handle word position found from DefinitionCard
   const handleWordPositionFound = useCallback((y: number) => {
-    console.log('[WordDetailScreen] Scrolling to Y position:', y);
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: 0,
-        y: Math.max(0, y - 100), // Offset 100px from top for better visibility
-        animated: true,
-      });
+    const currentScrollY = currentScrollYRef.current;
+    const viewportHeight = viewportHeightRef.current;
+
+    if (scrollViewRef.current && y > 0 && viewportHeight > 0) {
+      // Account for navigation bar at bottom
+      const BOTTOM_NAV_BUFFER = 150; // Navigation bar height
+      const TOP_BUFFER = 50; // Small top margin
+
+      const viewportTop = currentScrollY + TOP_BUFFER;
+      const viewportBottom = currentScrollY + viewportHeight - BOTTOM_NAV_BUFFER;
+
+      // Check if word is outside viewport (no tolerance - scroll if it's truly outside)
+      const isAboveViewport = y < viewportTop;
+      const isBelowViewport = y > viewportBottom;
+
+      if (isAboveViewport || isBelowViewport) {
+        // Scroll to position with offset for better visibility
+        const targetY = Math.max(0, y - 100);
+        scrollViewRef.current.scrollTo({
+          x: 0,
+          y: targetY,
+          animated: true,
+        });
+      }
     }
   }, []);
 
@@ -68,10 +106,12 @@ export default function WordDetailScreen() {
     const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     // Generate all possible variants for the word
+    // For prefixes, we ignore diacritics, but for the core word, we match exactly
     const generateVariants = (w: string): string[] => {
       const variants: string[] = [w];
       const حروفالجر = ['ب', 'و', 'ك', 'ف', 'ل'];
 
+      // Add variants with prefixes (diacritics will be optional only on prefixes)
       حروفالجر.forEach(حرف => {
         variants.push(حرف + w);
       });
@@ -93,11 +133,50 @@ export default function WordDetailScreen() {
     const variants = generateVariants(targetWord);
     const sortedVariants = variants.sort((a, b) => b.length - a.length);
 
-    // Build regex pattern with optional diacritics
+    // Build regex pattern: optional diacritics ONLY on prefixes, exact match on core word
     const pattern = sortedVariants
       .map(v => {
         const escaped = escapeRegex(v);
-        return escaped.split('').map(char => char + '[\\u064B-\\u065F\\u0670]*').join('');
+        // Extract prefix (if any) and core word
+        const حروفالجر = ['ب', 'و', 'ك', 'ف', 'ل'];
+        let prefix = '';
+        let coreWord = escaped;
+
+        // Check for single-letter prefixes
+        for (const حرف of حروفالجر) {
+          if (v.startsWith(حرف) && v.length > 1) {
+            prefix = escapeRegex(حرف);
+            coreWord = escapeRegex(v.substring(1));
+            break;
+          }
+        }
+
+        // Check for 'ال' and its variants
+        if (!prefix && v.startsWith('ال') && v.length > 2) {
+          prefix = escapeRegex('ال');
+          coreWord = escapeRegex(v.substring(2));
+        } else if (!prefix && v.startsWith('لل') && v.length > 2) {
+          prefix = escapeRegex('لل');
+          coreWord = escapeRegex(v.substring(2));
+        } else if (!prefix && v.startsWith('وب') && v.length > 2) {
+          prefix = escapeRegex('وب');
+          coreWord = escapeRegex(v.substring(2));
+        } else if (!prefix && v.startsWith('وك') && v.length > 2) {
+          prefix = escapeRegex('وك');
+          coreWord = escapeRegex(v.substring(2));
+        } else if (!prefix && v.startsWith('وس') && v.length > 2) {
+          prefix = escapeRegex('وس');
+          coreWord = escapeRegex(v.substring(2));
+        }
+
+        // Build pattern: optional diacritics on prefix chars, but core word matches exactly
+        if (prefix) {
+          const prefixWithDiacritics = prefix.split('').map(char => char + '[\\u064B-\\u065F\\u0670]*').join('');
+          return prefixWithDiacritics + coreWord;
+        } else {
+          // No prefix, match core word exactly
+          return coreWord;
+        }
       })
       .join('|');
 
@@ -106,18 +185,7 @@ export default function WordDetailScreen() {
     let match;
 
     while ((match = regex.exec(def)) !== null) {
-      const matchedText = match[0];
-      const matchedTextNoDiacritics = removeDiacritics(matchedText);
-
-      // Verify this is a valid match for our main word
-      for (const variant of sortedVariants) {
-        const variantNoDiacritics = removeDiacritics(variant);
-        if (matchedTextNoDiacritics === variantNoDiacritics ||
-            matchedTextNoDiacritics.startsWith(variantNoDiacritics)) {
-          count++;
-          break;
-        }
-      }
+      count++;
     }
 
     return count;
@@ -130,9 +198,21 @@ export default function WordDetailScreen() {
 
   // Get all words for this root (related words)
   const relatedWords = useMemo(() => {
-    if (!indexData || !dictionaryName || !root) return [];
-    return indexData[dictionaryName]?.[root] || [];
-  }, [indexData, dictionaryName, root]);
+    if (!dictionaryName || !root || processedWords.length === 0) return [];
+    // Filter words that belong to this root
+    return processedWords
+      .filter(w => w.root === root && w.dictionaryName === dictionaryName)
+      .map(w => w.word);
+  }, [processedWords, dictionaryName, root]);
+
+  // Get allPositions for current word from database
+  const currentWordPositions = useMemo(() => {
+    if (!word || !root || !dictionaryName || processedWords.length === 0) return [];
+    const currentWordData = processedWords.find(
+      w => w.word === word && w.root === root && w.dictionaryName === dictionaryName
+    );
+    return currentWordData?.allPositions || [];
+  }, [processedWords, word, root, dictionaryName]);
 
   // Find current word index
   const currentWordIndex = useMemo(() => {
@@ -158,14 +238,20 @@ export default function WordDetailScreen() {
   const handleNextWord = () => {
     if (currentWordIndex < activeWordList.length - 1) {
       const nextWord = activeWordList[currentWordIndex + 1];
-      setCurrentOccurrenceIndex(0); // Reset to first occurrence (scroll will happen via onWordPositionFound)
 
-      // Check if we're staying in the same root and dictionary
-      if (nextWord.root === root && nextWord.dictionaryName === dictionaryName) {
-        // Same root - just update the word parameter without router.replace
+      const isSameRoot = nextWord.root === root && nextWord.dictionaryName === dictionaryName;
+
+      // Only reset occurrence index for different roots
+      if (!isSameRoot) {
+        setCurrentOccurrenceIndex(0);
+      }
+
+      // Same root - just update params without page reload or scroll
+      if (isSameRoot) {
         router.setParams({ word: nextWord.word });
       } else {
-        // Different root - navigate
+        // Different root - full navigation
+        setCurrentOccurrenceIndex(0);
         router.replace({
           pathname: '/(tabs)/indexed/[word]',
           params: {
@@ -182,14 +268,13 @@ export default function WordDetailScreen() {
   const handlePreviousWord = () => {
     if (currentWordIndex > 0) {
       const prevWord = activeWordList[currentWordIndex - 1];
-      setCurrentOccurrenceIndex(0); // Reset to first occurrence (scroll will happen via onWordPositionFound)
+      setCurrentOccurrenceIndex(0);
 
-      // Check if we're staying in the same root and dictionary
+      // Same root - just update params without page reload
       if (prevWord.root === root && prevWord.dictionaryName === dictionaryName) {
-        // Same root - just update the word parameter without router.replace
         router.setParams({ word: prevWord.word });
       } else {
-        // Different root - navigate
+        // Different root - full navigation
         router.replace({
           pathname: '/(tabs)/indexed/[word]',
           params: {
@@ -253,13 +338,13 @@ export default function WordDetailScreen() {
   };
 
   const handleRelatedWordPress = (relatedWord: string) => {
-    setCurrentOccurrenceIndex(0); // Reset to first occurrence (scroll will happen via onWordPositionFound)
-    // Related words are always in the same root, so just update the word parameter
+    setCurrentOccurrenceIndex(0);
+    // Related words are always in the same root, just update params
     router.setParams({ word: relatedWord });
   };
 
-  // Show loading state while definition is being fetched
-  if (!definition) {
+  // Show loading state while definition is being fetched, words are loading, or highlighting is processing
+  if (!definition || !highlightReady || processedWords.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
@@ -321,12 +406,23 @@ export default function WordDetailScreen() {
           word={word || ''}
           root={root || ''}
           dictionaryName={dictionaryName || ''}
-          currentInstance={currentInstanceIndex}
-          totalInstances={wordInstances.length}
+          currentInstance={Math.max(0, currentInstanceIndex)}
+          totalInstances={Math.max(0, wordInstances.length)}
         />
       </View>
 
-      <ScrollView ref={scrollViewRef} style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        onScroll={(e) => {
+          currentScrollYRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        onLayout={(e) => {
+          viewportHeightRef.current = e.nativeEvent.layout.height;
+        }}
+        scrollEventThrottle={16}
+      >
         <DefinitionCard
           definition={definition}
           word={word || ''}
@@ -336,18 +432,19 @@ export default function WordDetailScreen() {
           totalOccurrences={wordOccurrences}
           scrollViewRef={scrollViewRef}
           onWordPositionFound={handleWordPositionFound}
+          allPositions={currentWordPositions}
         />
       </ScrollView>
 
       <NavigationBar
-        currentWordIndex={currentWordIndex}
-        totalWords={activeWordList.length}
+        currentWordIndex={Math.max(0, currentWordIndex)}
+        totalWords={Math.max(0, activeWordList.length)}
         onNextWord={handleNextWord}
         onPreviousWord={handlePreviousWord}
-        currentInstanceIndex={currentInstanceIndex}
-        totalInstances={wordInstances.length}
-        currentOccurrenceIndex={currentOccurrenceIndex}
-        totalOccurrences={wordOccurrences}
+        currentInstanceIndex={Math.max(0, currentInstanceIndex)}
+        totalInstances={Math.max(0, wordInstances.length)}
+        currentOccurrenceIndex={Math.max(0, currentOccurrenceIndex)}
+        totalOccurrences={Math.max(0, wordOccurrences)}
         onNextInstance={handleNextInstance}
         onPreviousInstance={handlePreviousInstance}
       />

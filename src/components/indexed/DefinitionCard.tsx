@@ -11,6 +11,8 @@ interface DefinitionCardProps {
   totalOccurrences?: number;
   scrollViewRef?: React.RefObject<ScrollView>;
   onWordPositionFound?: (y: number) => void;
+  autoScroll?: boolean; // Whether to auto-scroll to word position
+  allPositions?: number[]; // Pre-calculated positions from database
 }
 
 export function DefinitionCard({
@@ -22,6 +24,7 @@ export function DefinitionCard({
   totalOccurrences = 0,
   scrollViewRef,
   onWordPositionFound,
+  allPositions = [],
 }: DefinitionCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -29,11 +32,13 @@ export function DefinitionCard({
   const textLayoutLines = useRef<TextLayout['lines']>([]);
   const definitionCardRef = useRef<View>(null);
   const [layoutReady, setLayoutReady] = useState(false);
+  const lastScrolledWordRef = useRef<string>('');
+  const lastScrolledOccurrenceRef = useRef<number>(-1);
 
-  // Reset layout ready when word changes
+  // Reset layout ready when definition changes (different root)
   useEffect(() => {
     setLayoutReady(false);
-  }, [word, definition]);
+  }, [definition]);
 
   // Handle text layout to get line positions
   const handleTextLayout = useCallback((event: { nativeEvent: TextLayout }) => {
@@ -49,61 +54,31 @@ export function DefinitionCard({
     str.replace(/[\u064B-\u065F\u0670]/g, ''),
   []);
 
-  // Find the Y position of the current occurrence
+  // Find the Y position of the current occurrence using DATABASE positions
   useEffect(() => {
     if (!layoutReady || textLayoutLines.current.length === 0 || !word || totalOccurrences === 0) {
-
       return;
     }
 
-
-    // Build the full text from lines to find character positions
-    const fullText = textLayoutLines.current.map(line => line.text).join('');
-    const fullTextNoDiacritics = removeDiacritics(fullText);
-
-    // Generate word variants (same logic as highlighting)
-    const generateVariants = (w: string): string[] => {
-      const variants: string[] = [w];
-      const حروفالجر = ['ب', 'و', 'ك', 'ف', 'ل'];
-      حروفالجر.forEach(حرف => variants.push(حرف + w));
-      if (w.startsWith('ال')) {
-        const withoutال = w.substring(2);
-        variants.push('لل' + withoutال);
-        variants.push('وب' + withoutال);
-        variants.push('وك' + withoutال);
-      }
-      if (w.startsWith('أ') || w.startsWith('ا')) {
-        const withoutHamza = w.substring(1);
-        variants.push('وس' + withoutHamza);
-      }
-      return variants;
-    };
-
-    const variants = generateVariants(word);
-    const sortedVariants = variants.sort((a, b) => b.length - a.length);
-
-    // Find all occurrences
-    let occurrenceCount = 0;
-    let targetCharIndex = -1;
-
-    for (let i = 0; i < fullTextNoDiacritics.length; i++) {
-      for (const variant of sortedVariants) {
-        const variantNoDiacritics = removeDiacritics(variant);
-        if (fullTextNoDiacritics.substring(i, i + variantNoDiacritics.length) === variantNoDiacritics) {
-          if (occurrenceCount === currentOccurrenceIndex) {
-            targetCharIndex = i;
-            break;
-          }
-          occurrenceCount++;
-          break;
-        }
-      }
-      if (targetCharIndex !== -1) break;
+    // Clear refs when word or occurrence changes to allow position finding
+    const currentKey = `${word}-${currentOccurrenceIndex}`;
+    const lastKey = `${lastScrolledWordRef.current}-${lastScrolledOccurrenceRef.current}`;
+    if (currentKey !== lastKey) {
+      lastScrolledWordRef.current = '';
+      lastScrolledOccurrenceRef.current = -1;
     }
 
-    if (targetCharIndex === -1) {
+    // USE DATABASE POSITIONS - no more regex!
+    if (!allPositions || allPositions.length === 0) {
       return;
     }
+
+    if (currentOccurrenceIndex >= allPositions.length) {
+      return;
+    }
+
+    // Get character index from database
+    const targetCharIndex = allPositions[currentOccurrenceIndex];
 
     // Find which line contains this character index
     let charCount = 0;
@@ -121,6 +96,18 @@ export function DefinitionCard({
     if (targetLineIndex !== -1) {
       const targetY = textLayoutLines.current[targetLineIndex].y;
 
+      // Check if we already scrolled to this word/occurrence combination
+      const scrollKey = `${word}-${currentOccurrenceIndex}`;
+      const lastScrollKey = `${lastScrolledWordRef.current}-${lastScrolledOccurrenceRef.current}`;
+
+      if (scrollKey === lastScrollKey) {
+        return;
+      }
+
+      // Update refs IMMEDIATELY to prevent duplicate calls (before async operation)
+      lastScrolledWordRef.current = word;
+      lastScrolledOccurrenceRef.current = currentOccurrenceIndex;
+
       // Measure the DefinitionCard's position relative to the ScrollView
       if (definitionCardRef.current && scrollViewRef?.current) {
         // Add delay to ensure layout is stable
@@ -134,18 +121,13 @@ export function DefinitionCard({
               }
             },
             () => {
-              console.log('[DefinitionCard] measureLayout failed');
+              // measureLayout failed
             }
           );
         }, 100);
-      } else {
-        console.log('[DefinitionCard] Refs not available:', {
-          cardRef: !!definitionCardRef.current,
-          scrollRef: !!scrollViewRef?.current,
-        });
       }
     }
-  }, [layoutReady, currentOccurrenceIndex, word, totalOccurrences, scrollViewRef, onWordPositionFound, removeDiacritics]);
+  }, [layoutReady, currentOccurrenceIndex, word, totalOccurrences, scrollViewRef, onWordPositionFound, allPositions]);
 
   // Highlight the word and related words in the definition
   const highlightedDefinition = useMemo(() => {
@@ -212,11 +194,49 @@ export function DefinitionCard({
     // Sort variants by length (longest first)
     const sortedVariants = Array.from(wordMap.keys()).sort((a, b) => b.length - a.length);
 
-    // Build regex pattern with optional diacritics
+    // Build regex pattern: optional diacritics ONLY on prefixes, exact match on core word
     const pattern = sortedVariants.map(v => {
       const escaped = escapeRegex(v);
-      // Allow optional diacritics after each letter
-      return escaped.split('').map(char => char + '[\\u064B-\\u065F\\u0670]*').join('');
+      // Extract prefix (if any) and core word
+      const حروفالجر = ['ب', 'و', 'ك', 'ف', 'ل'];
+      let prefix = '';
+      let coreWord = escaped;
+
+      // Check for single-letter prefixes
+      for (const حرف of حروفالجر) {
+        if (v.startsWith(حرف) && v.length > 1) {
+          prefix = escapeRegex(حرف);
+          coreWord = escapeRegex(v.substring(1));
+          break;
+        }
+      }
+
+      // Check for 'ال' and its variants
+      if (!prefix && v.startsWith('ال') && v.length > 2) {
+        prefix = escapeRegex('ال');
+        coreWord = escapeRegex(v.substring(2));
+      } else if (!prefix && v.startsWith('لل') && v.length > 2) {
+        prefix = escapeRegex('لل');
+        coreWord = escapeRegex(v.substring(2));
+      } else if (!prefix && v.startsWith('وب') && v.length > 2) {
+        prefix = escapeRegex('وب');
+        coreWord = escapeRegex(v.substring(2));
+      } else if (!prefix && v.startsWith('وك') && v.length > 2) {
+        prefix = escapeRegex('وك');
+        coreWord = escapeRegex(v.substring(2));
+      } else if (!prefix && v.startsWith('وس') && v.length > 2) {
+        prefix = escapeRegex('وس');
+        coreWord = escapeRegex(v.substring(2));
+      }
+
+      // Build pattern: optional diacritics on prefix chars, but core word matches exactly
+      if (prefix) {
+        const prefixWithDiacritics = prefix.split('').map(char => char + '[\\u064B-\\u065F\\u0670]*').join('');
+        return prefixWithDiacritics + coreWord;
+      } else {
+        // No prefix, match core word exactly
+        return coreWord;
+      }
     }).join('|');
 
     const regex = new RegExp(pattern, 'g');
@@ -236,16 +256,52 @@ export function DefinitionCard({
 
       // Find which word this match corresponds to
       const matchedText = match[0];
-      const matchedTextNoDiacritics = removeDiacritics(matchedText);
 
       let matchedWordInfo: { originalWord: string; isMain: boolean } | undefined;
 
+      // Find the variant that produced this match
+      // We need to preserve diacritics on the core word, ignore only on prefix
       for (const variant of sortedVariants) {
-        const variantNoDiacritics = removeDiacritics(variant);
-        if (matchedTextNoDiacritics === variantNoDiacritics ||
-            matchedTextNoDiacritics.startsWith(variantNoDiacritics)) {
-          matchedWordInfo = wordMap.get(variant);
-          break;
+        const حروفالجر = ['ب', 'و', 'ك', 'ف', 'ل'];
+        let prefix = '';
+        let coreWord = variant;
+
+        // Extract prefix from variant (same logic as pattern building)
+        for (const حرف of حروفالجر) {
+          if (variant.startsWith(حرف) && variant.length > 1) {
+            prefix = حرف;
+            coreWord = variant.substring(1);
+            break;
+          }
+        }
+
+        if (!prefix) {
+          if (variant.startsWith('ال') && variant.length > 2) {
+            prefix = 'ال';
+            coreWord = variant.substring(2);
+          } else if (variant.startsWith('لل') && variant.length > 2) {
+            prefix = 'لل';
+            coreWord = variant.substring(2);
+          } else if (variant.startsWith('وب') && variant.length > 2) {
+            prefix = 'وب';
+            coreWord = variant.substring(2);
+          } else if (variant.startsWith('وك') && variant.length > 2) {
+            prefix = 'وك';
+            coreWord = variant.substring(2);
+          } else if (variant.startsWith('وس') && variant.length > 2) {
+            prefix = 'وس';
+            coreWord = variant.substring(2);
+          }
+        }
+
+        // Check if matchedText ends with exact coreWord (preserving diacritics)
+        if (matchedText.endsWith(coreWord)) {
+          // Check if prefix matches (ignoring diacritics on prefix only)
+          const matchedPrefix = matchedText.substring(0, matchedText.length - coreWord.length);
+          if (removeDiacritics(matchedPrefix) === removeDiacritics(prefix)) {
+            matchedWordInfo = wordMap.get(variant);
+            break;
+          }
         }
       }
 
@@ -294,7 +350,7 @@ export function DefinitionCard({
         {t('dictionaries.definition')}
       </Text>
       <Text
-        key={`${word}-${definition.substring(0, 50)}`}
+        key={definition.substring(0, 50)}
         style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}
         onTextLayout={handleTextLayout}
       >
