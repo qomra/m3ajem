@@ -3,6 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MigrationRunner } from '@services/database/migrationRunner';
 
 // Interfaces matching our SQLite schema
 interface Dictionary {
@@ -148,6 +149,10 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
       // Open database
       console.log('Opening database...');
       const database = await SQLite.openDatabaseAsync(DB_NAME);
+
+      // Run migrations for chat tables
+      console.log('Running database migrations...');
+      await MigrationRunner.runMigrations(database);
 
       set({ db: database, isInitialized: true });
       console.log('✓ Database initialized');

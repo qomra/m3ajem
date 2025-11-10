@@ -41,7 +41,7 @@
     "rootsCount": "عدد المواد",
     "enterKeyword": "ادخل كلمة مفتاحية للبحث عن المواد",
     "searchResults": "نتائج البحث",
-    "root": "الجذر",
+    "root": "المادة",
     "definition": "التعريف",
     "dictionaryName": "اسم المعجم",
     "descriptions": {
@@ -112,7 +112,22 @@
     "clearChat": "مسح المحادثة",
     "selectProvider": "اختر مزود الخدمة",
     "noMessages": "لا توجد رسائل بعد",
-    "startConversation": "ابدأ محادثة مع المساعد الذكي"
+    "startConversation": "ابدأ محادثة مع المساعد الذكي",
+    "contextsAttached": "سياق مرفق",
+    "removeContext": "إزالة السياق",
+    "clearAllContexts": "مسح جميع السياقات",
+    "sending": "جاري الإرسال...",
+    "configureAPI": "يجب تكوين API أولاً",
+    "goToSettings": "انتقل إلى الإعدادات",
+    "deleteConversation": "حذف المحادثة",
+    "confirmDeleteConversation": "هل أنت متأكد من حذف هذه المحادثة؟",
+    "you": "أنت",
+    "assistant": "المساعد",
+    "contextType": {
+      "definition": "تعريف",
+      "root": "مادة",
+      "word": "كلمة"
+    }
   },
   "settings": {
     "title": "الإعدادات",
@@ -127,12 +142,22 @@
     "chatbot": "إعدادات الدردشة الذكية",
     "chatProvider": "مزود الخدمة",
     "apiKey": "مفتاح API",
+    "apiKeyConfigured": "تم تكوين مفتاح API",
+    "enterApiKey": "أدخل مفتاح API",
     "saveApiKey": "حفظ المفتاح",
     "chatHistory": "سجل المحادثات",
     "exportChat": "تصدير سجل المحادثات",
     "importChat": "استيراد سجل المحادثات",
     "deleteChat": "حذف سجل المحادثات",
     "confirmDelete": "هل أنت متأكد من حذف سجل المحادثات؟",
+    "deleteAllData": "حذف جميع البيانات",
+    "confirmDeleteAllData": "هل أنت متأكد من حذف جميع البيانات (الصوتيات والمحادثات)؟ هذا الإجراء لا يمكن التراجع عنه.",
+    "downloadAllData": "تحميل جميع البيانات",
+    "downloadAllDataSubtitle": "تصدير قاعدة البيانات بالكامل إلى ملف ZIP",
+    "downloadAllAudio": "تحميل جميع الملفات الصوتية",
+    "downloadAllAudioSubtitle": "تنزيل جميع تسجيلات لسان العرب",
+    "openAudioFolder": "فتح مجلد الصوتيات",
+    "openAudioFolderSubtitle": "عرض المجلد في جوجل درايف",
     "data": "البيانات",
     "downloadData": "تحميل بيانات التطبيق",
     "dataDownloaded": "تم تحميل البيانات",
@@ -140,9 +165,40 @@
     "resetSettings": "إعادة تعيين جميع الإعدادات",
     "confirmReset": "هل أنت متأكد من إعادة تعيين جميع الإعدادات؟",
     "about": "حول التطبيق",
+    "aboutContent": "معاجم هو تطبيق شامل للمعاجم العربية يوفر الوصول السريع إلى المعاجم الكلاسيكية مع ميزات البحث المتقدم والفهرسة الذكية والتسجيلات الصوتية.",
     "version": "الإصدار",
+    "versionNumber": "1.0.0",
     "developer": "المطور",
-    "license": "الترخيص"
+    "license": "الترخيص",
+    "sections": {
+      "appearance": "المظهر",
+      "ai": "الذكاء الاصطناعي",
+      "data": "البيانات"
+    },
+    "apiConfig": {
+      "title": "إعدادات API",
+      "provider": "مزود الخدمة",
+      "apiKey": "مفتاح API",
+      "enterApiKey": "أدخل مفتاح API",
+      "testConnection": "اختبار الاتصال",
+      "connectionSuccess": "نجح الاتصال ✓",
+      "connectionError": "فشل الاتصال",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "error": "خطأ",
+      "success": "نجح",
+      "pleaseEnterApiKey": "الرجاء إدخال مفتاح API",
+      "invalidKey": "مفتاح غير صحيح",
+      "checkApiKeyFormat": "تحقق من صيغة مفتاح API",
+      "pleaseConfigureProvider": "الرجاء تكوين مزود خدمة واحد على الأقل",
+      "configSaved": "تم حفظ الإعدادات بنجاح",
+      "model": {
+        "openai": "GPT-5",
+        "google": "Gemini 2.5 Flash",
+        "anthropic": "Claude Sonnet 4.5",
+        "groq": "Llama 4 Maverick"
+      }
+    }
   },
   "errors": {
     "loadFailed": "فشل تحميل البيانات",
@@ -155,6 +211,8 @@
     "apiKeyRequired": "مفتاح API مطلوب",
     "apiKeyInvalid": "مفتاح API غير صحيح",
     "chatError": "خطأ في المحادثة",
-    "unexpectedError": "حدث خطأ غير متوقع"
+    "unexpectedError": "حدث خطأ غير متوقع",
+    "aiError": "خطأ من مزود الخدمة",
+    "apiErrorPrefix": "عذراً، حدث خطأ"
   }
 }
