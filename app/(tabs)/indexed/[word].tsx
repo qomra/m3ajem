@@ -24,6 +24,9 @@ export default function WordDetailScreen() {
 
   const { processedWords, searchRootInDictionary, loadAllWords } = useDictionaryStore();
 
+  // Determine highlight mode: if word === root, highlight all words; otherwise single word
+  const highlightMode: 'word' | 'root' = word === root ? 'root' : 'word';
+
   // Load words for navigation if not already loaded
   useEffect(() => {
     if (processedWords.length === 0) {
@@ -235,55 +238,88 @@ export default function WordDetailScreen() {
     router.back();
   };
 
+  const handleRootPress = () => {
+    // Navigate to root word (highlights all words)
+    setCurrentOccurrenceIndex(0);
+    router.setParams({ word: root });
+  };
+
   const handleNextWord = () => {
-    if (currentWordIndex < activeWordList.length - 1) {
-      const nextWord = activeWordList[currentWordIndex + 1];
+    setCurrentOccurrenceIndex(0);
 
-      const isSameRoot = nextWord.root === root && nextWord.dictionaryName === dictionaryName;
+    if (word === root) {
+      // Viewing root word - go to first derived word OR next root
+      // Find all words in this root
+      const wordsInThisRoot = activeWordList.filter(
+        item => item.root === root && item.dictionaryName === dictionaryName
+      );
 
-      // Only reset occurrence index for different roots
-      if (!isSameRoot) {
-        setCurrentOccurrenceIndex(0);
+      if (wordsInThisRoot.length > 0) {
+        // Navigate to first derived word in this root
+        router.setParams({ word: wordsInThisRoot[0].word });
       }
+    } else {
+      // Viewing a derived word - go to next derived word OR next root
+      if (currentWordIndex >= 0 && currentWordIndex < activeWordList.length - 1) {
+        const nextWord = activeWordList[currentWordIndex + 1];
+        const isSameRoot = nextWord.root === root && nextWord.dictionaryName === dictionaryName;
 
-      // Same root - just update params without page reload or scroll
-      if (isSameRoot) {
-        router.setParams({ word: nextWord.word });
-      } else {
-        // Different root - full navigation
-        setCurrentOccurrenceIndex(0);
-        router.replace({
-          pathname: '/(tabs)/indexed/[word]',
-          params: {
-            word: nextWord.word,
-            root: nextWord.root,
-            dictionaryName: nextWord.dictionaryName,
-            viewMode: viewMode || 'flatten',
-          },
-        });
+        if (isSameRoot) {
+          // Next word in same root
+          router.setParams({ word: nextWord.word });
+        } else {
+          // Different root - navigate to its root word
+          router.replace({
+            pathname: '/(tabs)/indexed/[word]',
+            params: {
+              word: nextWord.root,
+              root: nextWord.root,
+              dictionaryName: nextWord.dictionaryName,
+              viewMode: viewMode || 'flatten',
+            },
+          });
+        }
       }
     }
   };
 
   const handlePreviousWord = () => {
-    if (currentWordIndex > 0) {
-      const prevWord = activeWordList[currentWordIndex - 1];
-      setCurrentOccurrenceIndex(0);
+    setCurrentOccurrenceIndex(0);
 
-      // Same root - just update params without page reload
-      if (prevWord.root === root && prevWord.dictionaryName === dictionaryName) {
-        router.setParams({ word: prevWord.word });
-      } else {
-        // Different root - full navigation
+    if (word === root) {
+      // Viewing root word - find last word of previous root
+      // Find first word in this root to get position
+      const firstWordInThisRoot = activeWordList.findIndex(
+        item => item.root === root && item.dictionaryName === dictionaryName
+      );
+
+      if (firstWordInThisRoot > 0) {
+        // There's a word before this root - go to the last word of that root
+        const prevWord = activeWordList[firstWordInThisRoot - 1];
         router.replace({
           pathname: '/(tabs)/indexed/[word]',
           params: {
-            word: prevWord.word,
+            word: prevWord.word, // Navigate to the actual last word, not the root
             root: prevWord.root,
             dictionaryName: prevWord.dictionaryName,
             viewMode: viewMode || 'flatten',
           },
         });
+      }
+    } else {
+      // Viewing a derived word
+      if (currentWordIndex > 0) {
+        const prevWord = activeWordList[currentWordIndex - 1];
+        if (prevWord.root === root && prevWord.dictionaryName === dictionaryName) {
+          // Previous word in same root
+          router.setParams({ word: prevWord.word });
+        } else {
+          // Previous word is different root, go to our root word
+          router.setParams({ word: root });
+        }
+      } else {
+        // At start of list, go to root word
+        router.setParams({ word: root });
       }
     }
   };
@@ -343,6 +379,34 @@ export default function WordDetailScreen() {
     router.setParams({ word: relatedWord });
   };
 
+  // Check if previous button should be enabled
+  const canGoToPrevious = useMemo(() => {
+    if (word === root) {
+      // Viewing root word - can go previous if this root is not at the start
+      const firstWordInThisRoot = activeWordList.findIndex(
+        item => item.root === root && item.dictionaryName === dictionaryName
+      );
+      return firstWordInThisRoot > 0;
+    } else {
+      // Viewing derived word - can always go back (at minimum to root word)
+      return true;
+    }
+  }, [activeWordList, word, root, dictionaryName]);
+
+  // Check if next button should be enabled
+  const canGoToNext = useMemo(() => {
+    if (word === root) {
+      // Viewing root word - can go next if there are derived words in this root
+      const wordsInThisRoot = activeWordList.filter(
+        item => item.root === root && item.dictionaryName === dictionaryName
+      );
+      return wordsInThisRoot.length > 0;
+    } else {
+      // Viewing derived word - can go next if not at end of list
+      return currentWordIndex >= 0 && currentWordIndex < activeWordList.length - 1;
+    }
+  }, [currentWordIndex, activeWordList, word, root, dictionaryName]);
+
   // Show loading state while definition is being fetched, words are loading, or highlighting is processing
   if (!definition || !highlightReady || processedWords.length === 0) {
     return (
@@ -366,12 +430,22 @@ export default function WordDetailScreen() {
               </Text>
             </View>
             <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-            <View style={styles.infoRow}>
-              <Text style={[styles.infoValue, { color: theme.colors.text }]}> {root || ''}</Text>
+            <Pressable onPress={handleRootPress} style={styles.infoRow}>
+              <Text
+                style={[
+                  styles.infoValue,
+                  {
+                    color: highlightMode === 'root' ? theme.colors.primary : theme.colors.text,
+                    fontWeight: highlightMode === 'root' ? 'bold' : 'normal',
+                  }
+                ]}
+              >
+                {' '}{root || ''}
+              </Text>
               <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
                 {t('dictionaries.root')}:
               </Text>
-            </View>
+            </Pressable>
             <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
             <View style={styles.infoRow}>
               <Text style={[styles.infoValue, { color: theme.colors.text }]}> {dictionaryName || ''}</Text>
@@ -408,6 +482,8 @@ export default function WordDetailScreen() {
           dictionaryName={dictionaryName || ''}
           currentInstance={Math.max(0, currentInstanceIndex)}
           totalInstances={Math.max(0, wordInstances.length)}
+          highlightMode={highlightMode}
+          onRootPress={handleRootPress}
         />
       </View>
 
@@ -428,6 +504,7 @@ export default function WordDetailScreen() {
           word={word || ''}
           relatedWords={relatedWords}
           highlightEnabled={highlightEnabled}
+          highlightMode={highlightMode}
           currentOccurrenceIndex={currentOccurrenceIndex}
           totalOccurrences={wordOccurrences}
           scrollViewRef={scrollViewRef}
@@ -441,6 +518,8 @@ export default function WordDetailScreen() {
         totalWords={Math.max(0, activeWordList.length)}
         onNextWord={handleNextWord}
         onPreviousWord={handlePreviousWord}
+        canGoToPrevious={canGoToPrevious}
+        canGoToNext={canGoToNext}
         currentInstanceIndex={Math.max(0, currentInstanceIndex)}
         totalInstances={Math.max(0, wordInstances.length)}
         currentOccurrenceIndex={Math.max(0, currentOccurrenceIndex)}

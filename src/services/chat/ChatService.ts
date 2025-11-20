@@ -32,8 +32,9 @@ export class ChatService {
     conversationId: string,
     userMessageContent: string,
     apiConfig: APIConfig,
-    contextIds: string[] = []
-  ): Promise<{ userMessage: Message; assistantMessage: Message }> {
+    contextIds: string[] = [],
+    onThoughtUpdate?: (thought: any) => void
+  ): Promise<{ userMessage: Message; assistantMessage: MessageWithContexts }> {
     // 1. Create and save user message immediately
     const userMessage: Message = {
       id: this.generateMessageId(),
@@ -69,6 +70,8 @@ export class ChatService {
         userMessage: userMessageContent,
         messageHistory: messageHistory.slice(0, -1), // Exclude the just-added user message
         contexts,
+        apiConfig, // Pass API config for semantic search tool
+        onThoughtUpdate, // Pass through the thought streaming callback
       });
 
       if (!response.success) {
@@ -76,15 +79,24 @@ export class ChatService {
       }
 
       // 7. Create and save assistant message
-      const assistantMessage: Message = {
+      const assistantMessage: MessageWithContexts = {
         id: this.generateMessageId(),
         conversation_id: conversationId,
         role: 'assistant',
         content: response.content,
         timestamp: Date.now(),
+        sources: response.sources || [], // Attach sources from agent
+        thoughts: response.thoughts, // Attach thoughts from agent (saved to DB)
+        duration: response.duration, // Attach duration from agent (saved to DB)
       };
 
       await this.repository.createMessage(assistantMessage);
+
+      console.log(
+        `Saved assistant message with ${assistantMessage.sources?.length || 0} sources, ` +
+        `${assistantMessage.thoughts?.length || 0} thoughts, ` +
+        `duration: ${assistantMessage.duration}ms`
+      );
 
       return { userMessage, assistantMessage };
     } catch (error) {

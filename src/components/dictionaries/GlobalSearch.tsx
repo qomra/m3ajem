@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { SearchBar } from '@components/common/SearchBar';
 import { FilterModal } from '@components/modals/FilterModal';
 import { getFlexDirection } from '@/utils/rtl';
@@ -21,36 +21,53 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { dictionaries, searchRoot } = useDictionaryStore();
+  const { dictionaries, searchRoot, loadDictionaries } = useDictionaryStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [selectedDictionaries, setSelectedDictionaries] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+
+  // Load dictionaries if not already loaded
+  useEffect(() => {
+    if (dictionaries.length === 0) {
+      loadDictionaries();
+    }
+  }, []);
 
   const dictionaryNames = useMemo(() => dictionaries.map(d => d.name), [dictionaries]);
 
-  // Search results
-  const searchResults = useMemo<SearchResult[]>(() => {
-    if (!searchQuery.trim()) {
-      return [];
-    }
+  // Search when query changes
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
 
-    const results = searchRoot(searchQuery.trim());
+      const results = await searchRoot(searchQuery.trim());
 
-    // Filter by selected dictionaries if any
-    if (selectedDictionaries.length > 0) {
-      return results
-        .filter(r => selectedDictionaries.includes(r.dictionary))
-        .map(r => ({
-          root: searchQuery.trim(),
-          dictionaryName: r.dictionary,
-        }));
-    }
+      // Filter by selected dictionaries if any
+      if (selectedDictionaries.length > 0) {
+        setSearchResults(
+          results
+            .filter(r => selectedDictionaries.includes(r.dictionary))
+            .map(r => ({
+              root: searchQuery.trim(),
+              dictionaryName: r.dictionary,
+            }))
+        );
+      } else {
+        setSearchResults(
+          results.map(r => ({
+            root: searchQuery.trim(),
+            dictionaryName: r.dictionary,
+          }))
+        );
+      }
+    };
 
-    return results.map(r => ({
-      root: searchQuery.trim(),
-      dictionaryName: r.dictionary,
-    }));
+    performSearch();
   }, [searchQuery, selectedDictionaries, searchRoot]);
 
   const handleClearSearch = () => {

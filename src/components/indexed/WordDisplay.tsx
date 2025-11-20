@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 
 interface WordDisplayProps {
@@ -7,9 +7,11 @@ interface WordDisplayProps {
   dictionaryName: string;
   currentInstance?: number;
   totalInstances?: number;
+  highlightMode?: 'word' | 'root';
+  onRootPress?: () => void;
 }
 
-export function WordDisplay({ word, root, dictionaryName, currentInstance, totalInstances }: WordDisplayProps) {
+export function WordDisplay({ word, root, dictionaryName, currentInstance, totalInstances, highlightMode, onRootPress }: WordDisplayProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -24,12 +26,22 @@ export function WordDisplay({ word, root, dictionaryName, currentInstance, total
           </Text>
         </View>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-        <View style={styles.infoRow}>
-          <Text style={[styles.infoValue, { color: theme.colors.text }]}> {root}</Text>
+        <Pressable onPress={onRootPress} style={styles.infoRow}>
+          <Text
+            style={[
+              styles.infoValue,
+              {
+                color: highlightMode === 'root' ? theme.colors.primary : theme.colors.text,
+                fontWeight: highlightMode === 'root' ? 'bold' : 'normal',
+              }
+            ]}
+          >
+            {' '}{root}
+          </Text>
           <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
             {t('dictionaries.root')}:
           </Text>
-        </View>
+        </Pressable>
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
         <View style={styles.infoRow}>
           <Text style={[styles.infoValue, { color: theme.colors.text }]}> {dictionaryName}</Text>
@@ -40,13 +52,13 @@ export function WordDisplay({ word, root, dictionaryName, currentInstance, total
       </View>
 
       {/* Instance Counter (if multiple instances) */}
-      {totalInstances && totalInstances > 1 && currentInstance !== undefined && (
+      {totalInstances && totalInstances > 1 && currentInstance !== undefined ? (
         <View style={[styles.instanceCounter, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <Text style={[styles.instanceText, { color: theme.colors.textSecondary, textAlign: 'center' }]}>
-            {currentInstance + 1} / {totalInstances}
+            {`${currentInstance + 1} / ${totalInstances}`}
           </Text>
         </View>
-      )}
+      ) : null}
     </>
   );
 }

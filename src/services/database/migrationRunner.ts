@@ -11,6 +11,8 @@ interface Migration {
 
 // Import all migrations
 import * as migration001 from './migrations/001_create_chat_tables';
+import * as migration002 from './migrations/002_create_spectrum_vectors';
+import * as migration003 from './migrations/003_add_sources_to_messages';
 
 // Register all migrations
 const migrations: Migration[] = [
@@ -19,6 +21,18 @@ const migrations: Migration[] = [
     name: 'create_chat_tables',
     up: migration001.up,
     down: migration001.down,
+  },
+  {
+    version: 2,
+    name: 'create_spectrum_vectors',
+    up: migration002.up,
+    down: migration002.down,
+  },
+  {
+    version: 3,
+    name: 'add_sources_to_messages',
+    up: migration003.up,
+    down: migration003.down,
   },
 ];
 

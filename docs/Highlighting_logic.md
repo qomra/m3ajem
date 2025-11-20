@@ -3,6 +3,7 @@
 3. A word in the text is fully highlihted if it starts with لل and the targeted word started with ال. during indexing we made every لل to ال.. same dicritics rule applies here
 4. some rare words starts with وب and وك and وس. for example وسأفعل or وكالفتى or وبالله those should match أفعل and الفتى and الله
 ولغية
-
 5. When you highlight, always sort by the longest, and then identify them in the text, then go to the shorter... This ensure we match longest first.. 
 6. The color of the word under study is colored with a color different then the related words.. 
+7. الشخزُ is not the same as الشخزِ. You shouldn't highlight الشخزِ when we are on الشخزُ.. so diacritics is important..
+8. Sorting of the navigation should be pre-computed and should be based on the order of the first occurance of a word in the definition.. again the occurance if the entire word with diacritics is matched or according to rule 2 3 or 4

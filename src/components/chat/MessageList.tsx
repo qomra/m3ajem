@@ -2,7 +2,6 @@ import React, { useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { ChatMessage } from './ChatMessage';
 import { EmptyState } from './EmptyState';
-import { TypingIndicator } from './TypingIndicator';
 import type { MessageWithContexts } from '@/types/chat';
 
 interface MessageListProps {
@@ -20,14 +19,14 @@ export function MessageList({
 }: MessageListProps) {
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Auto-scroll to bottom when new messages arrive or when typing indicator shows
+  // Auto-scroll to bottom when new messages arrive or thoughts update
   useEffect(() => {
-    if (messages.length > 0 || isSending) {
+    if (messages.length > 0) {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length, isSending]);
+  }, [messages]);
 
   if (isLoading && messages.length === 0) {
     return (
@@ -52,7 +51,6 @@ export function MessageList({
       {messages.map((message) => (
         <ChatMessage key={message.id} message={message} onContextPress={onContextPress} />
       ))}
-      {isSending && <TypingIndicator />}
     </ScrollView>
   );
 }

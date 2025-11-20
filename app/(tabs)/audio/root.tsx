@@ -2,10 +2,9 @@ import { View, Text, StyleSheet, ScrollView, StatusBar, Pressable, ActivityIndic
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import { useTranslation, useTheme } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { useAudioStore } from '@store/audioStore';
 import { Ionicons } from '@expo/vector-icons';
-import { getFlexDirection } from '@/utils/rtl';
 
 // Audio controls as a separate component to isolate re-renders from playback updates
 const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: string; dictionaryName: string }) => {
@@ -161,55 +160,27 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
 
   return (
     <View style={[styles.audioControlsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <View style={[styles.audioControls, { flexDirection: getFlexDirection() }]}>
-        {/* Playable navigation - >| (skip-forward) = next */}
-        <Pressable
-          style={[styles.smallControlButton, { backgroundColor: theme.colors.background }]}
-          onPress={handleNextPlayable}
-          disabled={!canGoNextPlayable}
-        >
-          <Ionicons
-            name="play-skip-forward"
-            size={18}
-            color={canGoNextPlayable ? theme.colors.primary : theme.colors.textSecondary}
-          />
-        </Pressable>
-
-        {/* Playable navigation - <| (skip-back) = previous */}
-        <Pressable
-          style={[styles.smallControlButton, { backgroundColor: theme.colors.background }]}
-          onPress={handlePreviousPlayable}
-          disabled={!canGoPreviousPlayable}
-        >
-          <Ionicons
-            name="play-skip-back"
-            size={18}
-            color={canGoPreviousPlayable ? theme.colors.primary : theme.colors.textSecondary}
-          />
-        </Pressable>
-
-        {/* Repeat mode toggle */}
-        <Pressable
-          style={[
-            styles.controlButton,
-            {
-              backgroundColor: repeatMode !== 0
-                ? theme.colors.primary + '20'
-                : theme.colors.background,
-            },
-          ]}
-          onPress={cycleRepeatMode}
-        >
-          <View style={styles.repeatButtonContent}>
+      <View style={[styles.audioControls, { flexDirection: 'row' }]}>
+        {/* Delete button - first in code = leftmost in LTR */}
+        {rootDownloaded && !isDownloading && (
+          <Pressable
+            style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
+            onPress={handleDownload}
+          >
             <Ionicons
-              name={repeatMode === 2 ? "repeat-outline" : "repeat"}
+              name="trash-outline"
               size={20}
-              color={repeatMode !== 0 ? theme.colors.primary : theme.colors.textSecondary}
+              color={theme.colors.error}
             />
-            {repeatMode === 2 && (
-              <Text style={[styles.repeatBadge, { color: theme.colors.primary }]}>1</Text>
-            )}
-          </View>
+          </Pressable>
+        )}
+
+        {/* Stop button */}
+        <Pressable
+          style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
+          onPress={stopAudio}
+        >
+          <Ionicons name="stop" size={20} color={theme.colors.textSecondary} />
         </Pressable>
 
         {/* Play/Pause button */}
@@ -238,27 +209,55 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
           )}
         </Pressable>
 
-        {/* Stop button */}
+        {/* Repeat mode toggle */}
         <Pressable
-          style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
-          onPress={stopAudio}
+          style={[
+            styles.controlButton,
+            {
+              backgroundColor: repeatMode !== 0
+                ? theme.colors.primary + '20'
+                : theme.colors.background,
+            },
+          ]}
+          onPress={cycleRepeatMode}
         >
-          <Ionicons name="stop" size={20} color={theme.colors.textSecondary} />
+          <View style={styles.repeatButtonContent}>
+            <Ionicons
+              name={repeatMode === 2 ? "repeat-outline" : "repeat"}
+              size={20}
+              color={repeatMode !== 0 ? theme.colors.primary : theme.colors.textSecondary}
+            />
+            {repeatMode === 2 && (
+              <Text style={[styles.repeatBadge, { color: theme.colors.primary }]}>1</Text>
+            )}
+          </View>
         </Pressable>
 
-        {/* Delete button - last in code = leftmost in RTL */}
-        {rootDownloaded && !isDownloading && (
-          <Pressable
-            style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
-            onPress={handleDownload}
-          >
-            <Ionicons
-              name="trash-outline"
-              size={20}
-              color={theme.colors.error}
-            />
-          </Pressable>
-        )}
+        {/* Playable navigation - <| (skip-back) = previous - rightmost button */}
+        <Pressable
+          style={[styles.smallControlButton, { backgroundColor: theme.colors.background }]}
+          onPress={handlePreviousPlayable}
+          disabled={!canGoPreviousPlayable}
+        >
+          <Ionicons
+            name="play-skip-back"
+            size={18}
+            color={canGoPreviousPlayable ? theme.colors.primary : theme.colors.textSecondary}
+          />
+        </Pressable>
+
+        {/* Playable navigation - >| (skip-forward) = next */}
+        <Pressable
+          style={[styles.smallControlButton, { backgroundColor: theme.colors.background }]}
+          onPress={handleNextPlayable}
+          disabled={!canGoNextPlayable}
+        >
+          <Ionicons
+            name="play-skip-forward"
+            size={18}
+            color={canGoNextPlayable ? theme.colors.primary : theme.colors.textSecondary}
+          />
+        </Pressable>
       </View>
 
       {/* Progress bar */}
@@ -272,7 +271,7 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
               ]}
             />
           </View>
-          <View style={[styles.timeRow, { flexDirection: getFlexDirection() }]}>
+          <View style={[styles.timeRow, { flexDirection: 'row-reverse' }]}>
             <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
               {formatTime(playbackPosition)}
             </Text>
@@ -294,17 +293,7 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
       )}
 
       {/* Root navigation buttons - for ALL roots */}
-      <View style={[styles.rootNavigationSection, { borderTopColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
-        <Pressable
-          style={[styles.rootNavButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-          onPress={handlePreviousRoot}
-          disabled={!canGoPreviousRoot}
-        >
-          <Text style={[styles.rootNavText, { color: canGoPreviousRoot ? theme.colors.primary : theme.colors.textSecondary }]}>
-            {t('audio.previousRoot')}
-          </Text>
-        </Pressable>
-
+      <View style={[styles.rootNavigationSection, { borderTopColor: theme.colors.border, flexDirection: 'row' }]}>
         <Pressable
           style={[styles.rootNavButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
           onPress={handleNextRoot}
@@ -312,6 +301,16 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
         >
           <Text style={[styles.rootNavText, { color: canGoNextRoot ? theme.colors.primary : theme.colors.textSecondary }]}>
             {t('audio.nextRoot')}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.rootNavButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+          onPress={handlePreviousRoot}
+          disabled={!canGoPreviousRoot}
+        >
+          <Text style={[styles.rootNavText, { color: canGoPreviousRoot ? theme.colors.primary : theme.colors.textSecondary }]}>
+            {t('audio.previousRoot')}
           </Text>
         </Pressable>
       </View>

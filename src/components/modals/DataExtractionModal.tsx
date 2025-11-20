@@ -44,12 +44,9 @@ export function DataExtractionModal({
   }, [visible]);
 
   useEffect(() => {
-    Animated.timing(progressWidth, {
-      toValue: progress,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [progress]);
+    // Update immediately without animation to keep bar and percentage in sync
+    progressWidth.setValue(progress);
+  }, [progress, progressWidth]);
 
   const progressBarWidth = progressWidth.interpolate({
     inputRange: [0, 100],

@@ -44,11 +44,17 @@ we want to build an arabic dictionary app using expo go and react, the app shoul
         VI. There should be a navigation button to to the next word wether in the search results from the words list page, or just next in sequence without search. So if the user enter the page from the search results, the next button should go to the next word in the search results. If the user enter the page from the words list page, the next button should go to the next word in the words list page.
 3. صوتي
     A. List of roots for لسان العرب 
-    B. User can play the audio of the root by clicking on the audio button
+    B. User can play the audio of the root by clicking on the audio button (it should download the audio if not downloaded)
     C. User can toggle to continue playing next word in the root
-    D. User can sort the list of roots and hence changing the play order
+    D. User can sort the l§§ist of roots and hence changing the play order
     E. User can search for a root by typing in the search field
     F. User can enter root page and play the audio of the root. If next word is toggled, the audio should continue playing the next word in the root, and the page should flip to the next word.
+    G. User can download single audio file
+    H. User can download the entire dataset
+    I. User can clear or delete audio.. 
+    J. User can delete entire dataset
+    K. There should be clear indicator for downloaded files vs not downloaded.
+    L. User can sort or filter by downloaded 
 4. ذكي
     A. A chat like page with a text input field at the bottom and a send button, and list of conversation and everything else is done in the chatbot.
     B. All chat conversations are stored locally in the device.

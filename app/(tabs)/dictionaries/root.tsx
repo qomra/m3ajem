@@ -2,8 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, StatusBar, ActivityIndic
 import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
-import { getFlexDirection } from '@/utils/rtl';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 
 export default function RootDetail() {
   const theme = useTheme();
@@ -17,8 +16,8 @@ export default function RootDetail() {
 
   // Load definition ONLY after interactions complete (navigation animation done)
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      const def = searchRootInDictionary(dictionaryName || '', root || '');
+    const task = InteractionManager.runAfterInteractions(async () => {
+      const def = await searchRootInDictionary(dictionaryName || '', root || '');
       setDefinition(def || '');
     });
 
@@ -42,20 +41,21 @@ export default function RootDetail() {
 
       {/* Fixed Content */}
       <View style={styles.fixedContent}>
-        {/* Root */}
-        <View style={[styles.rootContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.rootLabel, { color: theme.colors.textSecondary }]}>
-            {t('dictionaries.root')}
-          </Text>
-          <Text style={[styles.rootText, { color: theme.colors.primary }]}>{root}</Text>
-        </View>
-
-        {/* Dictionary Name */}
+        {/* Root & Dictionary Info - Combined */}
         <View style={[styles.infoCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.infoLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-            {t('dictionaries.dictionaryName')}
-          </Text>
-          <Text style={[styles.infoText, { color: theme.colors.text, textAlign: 'right' }]}>{dictionaryName}</Text>
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoValue, { color: theme.colors.primary, fontWeight: 'bold' }]}> {root}</Text>
+            <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+              {t('dictionaries.root')}:
+            </Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoValue, { color: theme.colors.text }]}> {dictionaryName}</Text>
+            <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
+              {t('dictionaries.dictionaryName')}:
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -76,7 +76,12 @@ export default function RootDetail() {
             <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
               {t('dictionaries.definition')}
             </Text>
-            <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>{definition}</Text>
+            <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>
+              {definition.split('.').map((sentence, index, array) => {
+                const trimmed = sentence.trim();
+                return trimmed ? (index < array.length - 1 ? trimmed + '.\n\n' : trimmed) : '';
+              }).join('')}
+            </Text>
           </View>
         </ScrollView>
       )}
@@ -114,34 +119,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
-  rootContainer: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  rootLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  rootText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-  },
   infoCard: {
     borderRadius: 12,
     borderWidth: 1,
     padding: 16,
     marginBottom: 16,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   infoLabel: {
     fontSize: 14,
-    marginBottom: 4,
   },
-  infoText: {
+  infoValue: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
   },
   definitionCard: {
     borderRadius: 12,

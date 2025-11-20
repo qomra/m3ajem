@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
 
 interface DictionaryCardProps {
@@ -26,13 +25,7 @@ export function DictionaryCard({ name, rootsCount, onPress, onInfoPress }: Dicti
       ]}
       onPress={onPress}
     >
-      <View style={[styles.content, { flexDirection: getFlexDirection() }]}>
-        <View style={styles.info}>
-          <Text style={[styles.name, { color: theme.colors.text, textAlign: 'right' }]}>{name}</Text>
-          <Text style={[styles.count, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
-            {t('dictionaries.rootsCount')}: {rootsCount.toLocaleString('ar-SA')}
-          </Text>
-        </View>
+      <View style={[styles.content, { flexDirection: 'row' }]}>
         <Pressable
           style={({ pressed }) => [
             styles.infoButton,
@@ -49,6 +42,12 @@ export function DictionaryCard({ name, rootsCount, onPress, onInfoPress }: Dicti
         >
           <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary} />
         </Pressable>
+        <View style={styles.info}>
+          <Text style={[styles.name, { color: theme.colors.text, textAlign: 'right' }]}>{name}</Text>
+          <Text style={[styles.count, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
+            {t('dictionaries.rootsCount')}: {rootsCount.toLocaleString('ar-SA')}
+          </Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -82,7 +81,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
+    marginRight: 12,
     borderWidth: 2,
   },
 });

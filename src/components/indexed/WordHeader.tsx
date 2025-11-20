@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
 
 interface WordHeaderProps {
@@ -22,8 +21,22 @@ export function WordHeader({
 
   return (
     <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-      <View style={[styles.headerTop, { flexDirection: getFlexDirection() }]}>
+      <View style={[styles.headerTop, { flexDirection: 'row' }]}>
+        <Pressable style={styles.backButton} onPress={onBackPress}>
+          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
+        </Pressable>
+
         <View style={styles.headerActions}>
+          {/* Related Words */}
+          {relatedWordsCount > 1 && (
+            <Pressable
+              style={[styles.iconButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary }]}
+              onPress={onShowRelatedWords}
+            >
+              <Ionicons name="list-outline" size={20} color={theme.colors.primary} />
+            </Pressable>
+          )}
+
           {/* Toggle Highlight */}
           <Pressable
             style={[
@@ -41,21 +54,7 @@ export function WordHeader({
               color={highlightEnabled ? theme.colors.background : theme.colors.primary}
             />
           </Pressable>
-
-          {/* Related Words */}
-          {relatedWordsCount > 1 && (
-            <Pressable
-              style={[styles.iconButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary }]}
-              onPress={onShowRelatedWords}
-            >
-              <Ionicons name="list-outline" size={20} color={theme.colors.primary} />
-            </Pressable>
-          )}
         </View>
-
-        <Pressable style={styles.backButton} onPress={onBackPress}>
-          <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -73,7 +72,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerActions: {
+    flex: 1,
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 8,
   },
   backButton: {

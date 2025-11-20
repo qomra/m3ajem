@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
 
 interface NavigationBarProps {
@@ -8,6 +7,8 @@ interface NavigationBarProps {
   totalWords: number;
   onNextWord: () => void;
   onPreviousWord: () => void;
+  canGoToPrevious?: boolean;
+  canGoToNext?: boolean;
   currentInstanceIndex?: number;
   totalInstances?: number;
   currentOccurrenceIndex?: number;
@@ -21,6 +22,8 @@ export function NavigationBar({
   totalWords,
   onNextWord,
   onPreviousWord,
+  canGoToPrevious,
+  canGoToNext,
   currentInstanceIndex,
   totalInstances,
   currentOccurrenceIndex = 0,
@@ -31,7 +34,7 @@ export function NavigationBar({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const showInstanceNav = totalInstances && totalInstances > 1 && currentInstanceIndex !== undefined;
+  const showInstanceNav = Boolean(totalInstances && totalInstances > 1 && currentInstanceIndex !== undefined);
 
   // Determine if instance navigation buttons should be disabled
   const canGoToPreviousInstance = currentOccurrenceIndex > 0 || (currentInstanceIndex !== undefined && currentInstanceIndex > 0);
@@ -39,29 +42,15 @@ export function NavigationBar({
     currentOccurrenceIndex < totalOccurrences - 1 ||
     (currentInstanceIndex !== undefined && totalInstances !== undefined && currentInstanceIndex < totalInstances - 1);
 
+  // Use provided canGoToPrevious/canGoToNext or fallback to default logic
+  const previousDisabled = canGoToPrevious !== undefined ? !canGoToPrevious : currentWordIndex <= 0;
+  const nextDisabled = canGoToNext !== undefined ? !canGoToNext : currentWordIndex >= totalWords - 1;
+
   return (
     <View style={[styles.navBar, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}>
       {/* Instance Navigation (only if multiple instances) */}
-      {showInstanceNav && onNextInstance && onPreviousInstance && (
-        <View style={[styles.navSection, { flexDirection: getFlexDirection() }]}>
-          <Pressable
-            style={[
-              styles.navButton,
-              {
-                backgroundColor: theme.colors.primary + '20',
-                borderColor: theme.colors.primary,
-                opacity: canGoToPreviousInstance ? 1 : 0.5,
-              },
-            ]}
-            onPress={onPreviousInstance}
-            disabled={!canGoToPreviousInstance}
-          >
-            <Text style={[styles.navButtonText, { color: theme.colors.primary }]}>
-              {t('indexed.previousInstance')}
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
-          </Pressable>
-
+      {showInstanceNav && onNextInstance && onPreviousInstance ? (
+        <View style={[styles.navSection, { flexDirection: 'row' }]}>
           <Pressable
             style={[
               styles.navButton,
@@ -79,25 +68,43 @@ export function NavigationBar({
               {t('indexed.nextInstance')}
             </Text>
           </Pressable>
+
+          <Pressable
+            style={[
+              styles.navButton,
+              {
+                backgroundColor: theme.colors.primary + '20',
+                borderColor: theme.colors.primary,
+                opacity: canGoToPreviousInstance ? 1 : 0.5,
+              },
+            ]}
+            onPress={onPreviousInstance}
+            disabled={!canGoToPreviousInstance}
+          >
+            <Text style={[styles.navButtonText, { color: theme.colors.primary }]}>
+              {t('indexed.previousInstance')}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          </Pressable>
         </View>
-      )}
+      ) : null}
 
       {/* Word Navigation */}
-      <View style={[styles.navSection, { flexDirection: getFlexDirection() }]}>
+      <View style={[styles.navSection, { flexDirection: 'row' }]}>
         <Pressable
           style={[
             styles.navButton,
             {
               backgroundColor: theme.colors.background,
               borderColor: theme.colors.border,
-              opacity: currentWordIndex <= 0 ? 0.5 : 1,
+              opacity: nextDisabled ? 0.5 : 1,
             },
           ]}
-          onPress={onPreviousWord}
-          disabled={currentWordIndex <= 0}
+          onPress={onNextWord}
+          disabled={nextDisabled}
         >
-          <Text style={[styles.navButtonText, { color: theme.colors.text }]}>{t('indexed.previousWord')}</Text>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+          <Text style={[styles.navButtonText, { color: theme.colors.text }]}>{t('indexed.nextWord')}</Text>
         </Pressable>
 
         <Pressable
@@ -106,14 +113,14 @@ export function NavigationBar({
             {
               backgroundColor: theme.colors.background,
               borderColor: theme.colors.border,
-              opacity: currentWordIndex >= totalWords - 1 ? 0.5 : 1,
+              opacity: previousDisabled ? 0.5 : 1,
             },
           ]}
-          onPress={onNextWord}
-          disabled={currentWordIndex >= totalWords - 1}
+          onPress={onPreviousWord}
+          disabled={previousDisabled}
         >
-          <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
-          <Text style={[styles.navButtonText, { color: theme.colors.text }]}>{t('indexed.nextWord')}</Text>
+          <Text style={[styles.navButtonText, { color: theme.colors.text }]}>{t('indexed.previousWord')}</Text>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
         </Pressable>
       </View>
     </View>

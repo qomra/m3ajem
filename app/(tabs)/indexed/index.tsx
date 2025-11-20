@@ -2,10 +2,9 @@ import { View, Text, StyleSheet, FlatList, StatusBar } from 'react-native';
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useTranslation, useTheme } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { IndexedHeader } from '@components/indexed/IndexedHeader';
 import { RootCard } from '@components/indexed/RootCard';
-import { WordCard } from '@components/indexed/WordCard';
 
 // Separate component for the actual content - only mounts after delay
 function IndexedContent() {
@@ -14,31 +13,20 @@ function IndexedContent() {
   const router = useRouter();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [isGrouped, setIsGrouped] = useState(true);
   const [isReverseSearch, setIsReverseSearch] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
 
-  const processedWords = useDictionaryStore(state => state.processedWords);
-  const processedRoots = useDictionaryStore(state => state.processedRoots);
-  const isLoadingIndex = useDictionaryStore(state => state.isLoadingIndex);
+  const { processedRoots, isLoadingRoots, loadAllRoots } = useDictionaryStore();
+
+  // Load roots on mount
+  useEffect(() => {
+    if (processedRoots.length === 0) {
+      loadAllRoots();
+    }
+  }, []);
 
   // Helper: Remove diacritics for search matching
   const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');
-
-  // Filter words based on search
-  const filteredWords = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return processedWords;
-    }
-
-    const query = removeDiacritics(searchQuery.trim());
-
-    if (isReverseSearch) {
-      return processedWords.filter(item => removeDiacritics(item.word).endsWith(query));
-    } else {
-      return processedWords.filter(item => removeDiacritics(item.word).includes(query));
-    }
-  }, [processedWords, searchQuery, isReverseSearch]);
 
   // Filter grouped words based on search
   const filteredGroupedWords = useMemo(() => {
@@ -70,7 +58,20 @@ function IndexedContent() {
         word,
         root,
         dictionaryName,
-        viewMode: isGrouped ? 'grouped' : 'flatten',
+        viewMode: 'grouped',
+      },
+    });
+  };
+
+  const handleRootPress = (root: string, dictionaryName: string) => {
+    // Navigate to the root word itself (all words highlighted)
+    router.push({
+      pathname: '/(tabs)/indexed/[word]',
+      params: {
+        word: root,
+        root,
+        dictionaryName,
+        viewMode: 'grouped',
       },
     });
   };
@@ -85,7 +86,7 @@ function IndexedContent() {
     setExpandedRoots(newExpanded);
   };
 
-  if (isLoadingIndex || processedWords.length === 0) {
+  if (isLoadingRoots || processedRoots.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
@@ -94,8 +95,6 @@ function IndexedContent() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onClearSearch={() => setSearchQuery('')}
-          isGrouped={isGrouped}
-          onToggleGrouped={() => setIsGrouped(!isGrouped)}
           isReverseSearch={isReverseSearch}
           onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
         />
@@ -117,61 +116,36 @@ function IndexedContent() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onClearSearch={() => setSearchQuery('')}
-        isGrouped={isGrouped}
-        onToggleGrouped={() => setIsGrouped(!isGrouped)}
         isReverseSearch={isReverseSearch}
         onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
       />
 
-      {/* Word List */}
-      {isGrouped ? (
-        <FlatList
-          data={filteredGroupedWords}
-          keyExtractor={item => `${item.dictionaryName}-${item.root}`}
-          keyboardShouldPersistTaps='handled'
-          renderItem={({ item }) => (
-            <RootCard
-              root={item.root}
-              dictionaryName={item.dictionaryName}
-              words={item.words}
-              wordCount={item.wordCount}
-              isExpanded={expandedRoots.has(item.root)}
-              onToggleExpand={() => toggleRootExpand(item.root)}
-              onWordPress={word => handleWordPress(word, item.root, item.dictionaryName)}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                {t('common.noResults')}
-              </Text>
-            </View>
-          }
-        />
-      ) : (
-        <FlatList
-          data={filteredWords}
-          keyExtractor={(item, index) => `${item.word}-${item.root}-${index}`}
-          keyboardShouldPersistTaps='handled'
-          renderItem={({ item }) => (
-            <WordCard
-              word={item.word}
-              root={item.root}
-              dictionaryName={item.dictionaryName}
-              onPress={() => handleWordPress(item.word, item.root, item.dictionaryName)}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                {t('common.noResults')}
-              </Text>
-            </View>
-          }
-        />
-      )}
+      {/* Word List - Always Grouped */}
+      <FlatList
+        data={filteredGroupedWords}
+        keyExtractor={item => `${item.dictionaryName}-${item.root}`}
+        keyboardShouldPersistTaps='handled'
+        renderItem={({ item }) => (
+          <RootCard
+            root={item.root}
+            dictionaryName={item.dictionaryName}
+            words={item.words}
+            wordCount={item.wordCount}
+            isExpanded={expandedRoots.has(item.root)}
+            onToggleExpand={() => toggleRootExpand(item.root)}
+            onWordPress={word => handleWordPress(word, item.root, item.dictionaryName)}
+            onRootPress={() => handleRootPress(item.root, item.dictionaryName)}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              {t('common.noResults')}
+            </Text>
+          </View>
+        }
+      />
     </View>
   );
 }

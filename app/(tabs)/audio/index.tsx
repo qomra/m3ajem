@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, FlatList, StatusBar } from 'react-native';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation, useTheme } from '@hooks';
 import { useAudioStore } from '@store/audioStore';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { AudioHeader } from '@components/audio/AudioHeader';
 import { AudioRootCard } from '@components/audio/AudioRootCard';
 import { AudioPlayer } from '@components/audio/AudioPlayer';

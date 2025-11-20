@@ -1,5 +1,12 @@
 import type { BaseProvider } from '@services/ai/BaseProvider';
 import type { Message, ChatContext } from '@/types/chat';
+import type { APIConfig } from '@services/storage/apiKeyStorage';
+import type { Source } from '@/types/sources';
+
+/**
+ * Callback for streaming thoughts in real-time
+ */
+export type ThoughtCallback = (thought: AgentThought) => void;
 
 /**
  * Request for processing a message
@@ -9,6 +16,18 @@ export interface AgentRequest {
   userMessage: string;
   messageHistory: Message[];
   contexts?: ChatContext[];
+  apiConfig?: APIConfig; // Optional for agents that need API access (e.g., embeddings)
+  onThoughtUpdate?: ThoughtCallback; // Optional callback for streaming thoughts
+}
+
+/**
+ * Thought captured during tool calling
+ */
+export interface AgentThought {
+  iteration: number;
+  content: string; // LLM's explanation of what it's doing
+  toolCalls: string[]; // Names of tools used in this iteration
+  timestamp: number;
 }
 
 /**
@@ -18,6 +37,9 @@ export interface AgentResponse {
   content: string;
   success: boolean;
   error?: string;
+  sources?: Source[]; // Sources collected from tool calls
+  thoughts?: AgentThought[]; // LLM reasoning steps during tool calling
+  duration?: number; // Total processing time in milliseconds
 }
 
 /**

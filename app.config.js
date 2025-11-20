@@ -35,7 +35,7 @@ module.exports = {
       "expo-router",
       "expo-asset",
       "expo-secure-store",
-      "./plugins/withRTLSupport.js"
+      ["expo-sqlite", { "withSQLiteVecExtension": true }]
     ],
     experiments: {
       typedRoutes: true

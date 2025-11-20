@@ -13,7 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation, useTheme } from '@hooks';
 import { useSettingsStore } from '@store/settingsStore';
 import { APIConfigModal } from '@components/settings/APIConfigModal';
+import { SerpAPIConfigModal } from '@components/settings/SerpAPIConfigModal';
 import { APIKeyStorage } from '@services/storage/apiKeyStorage';
+import { SerpAPIStorage } from '@services/storage/serpApiStorage';
 
 // Settings Section Component
 const SettingsSection = ({ title, children }: { title: string; children: React.ReactNode }) => {
@@ -85,10 +87,13 @@ export default function SettingsScreen() {
   const { theme: themePreference, setTheme } = useSettingsStore();
 
   const [showAPIModal, setShowAPIModal] = useState(false);
+  const [showSerpAPIModal, setShowSerpAPIModal] = useState(false);
   const [hasAPIKey, setHasAPIKey] = useState(false);
+  const [hasSerpAPI, setHasSerpAPI] = useState(false);
 
   useEffect(() => {
     loadAPIStatus();
+    loadSerpAPIStatus();
   }, []);
 
   const loadAPIStatus = async () => {
@@ -96,8 +101,17 @@ export default function SettingsScreen() {
     setHasAPIKey(!!apiConfig?.apiKey);
   };
 
+  const loadSerpAPIStatus = async () => {
+    const serpConfig = await SerpAPIStorage.getConfig();
+    setHasSerpAPI(!!serpConfig?.apiKey);
+  };
+
   const handleAPIConfigSaved = () => {
     loadAPIStatus();
+  };
+
+  const handleSerpAPIConfigSaved = () => {
+    loadSerpAPIStatus();
   };
 
   const handleDeleteAllAudio = () => {
@@ -275,6 +289,12 @@ export default function SettingsScreen() {
             subtitle={hasAPIKey ? t('settings.apiKeyConfigured') : t('settings.enterApiKey')}
             onPress={() => setShowAPIModal(true)}
           />
+          <SettingsItem
+            icon="search-outline"
+            title={t('settings.serpapi.title')}
+            subtitle={hasSerpAPI ? t('settings.serpapi.enabled') : t('settings.serpapi.description')}
+            onPress={() => setShowSerpAPIModal(true)}
+          />
         </SettingsSection>
 
         {/* Data Section */}
@@ -342,6 +362,13 @@ export default function SettingsScreen() {
         visible={showAPIModal}
         onClose={() => setShowAPIModal(false)}
         onSave={handleAPIConfigSaved}
+      />
+
+      {/* SerpAPI Configuration Modal */}
+      <SerpAPIConfigModal
+        visible={showSerpAPIModal}
+        onClose={() => setShowSerpAPIModal(false)}
+        onSave={handleSerpAPIConfigSaved}
       />
     </SafeAreaView>
   );

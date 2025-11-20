@@ -3,12 +3,13 @@ import * as SQLite from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MigrationRunner } from '@services/database/migrationRunner';
+import { TwoDatabaseMigrationRunner } from '@services/database/TwoDatabaseMigrationRunner';
 
 // Interfaces matching our SQLite schema
 interface Dictionary {
   id: number;
   name: string;
+  indexing_pattern: string;
 }
 
 interface Root {
@@ -104,7 +105,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       // Check if we've already initialized the database
       const dbVersion = await AsyncStorage.getItem('@m3ajem/db_version');
-      const CURRENT_DB_VERSION = '3'; // Increment this when database structure changes
+      const CURRENT_DB_VERSION = '5'; // Increment this when database structure changes
 
       if (dbVersion !== CURRENT_DB_VERSION) {
         console.log('First launch - copying database...');
@@ -150,9 +151,13 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
       console.log('Opening database...');
       const database = await SQLite.openDatabaseAsync(DB_NAME);
 
-      // Run migrations for chat tables
-      console.log('Running database migrations...');
-      await MigrationRunner.runMigrations(database);
+      // Run dictionary migrations (spectrum_vectors for semantic search)
+      console.log('Running dictionary database migrations...');
+      await TwoDatabaseMigrationRunner.runDictionaryMigrations(database);
+
+      // Note: Semantic embeddings are now optional resources
+      // Users can download them from the Resources section
+      // They will be loaded automatically when downloaded
 
       set({ db: database, isInitialized: true });
       console.log('✓ Database initialized');
@@ -442,6 +447,52 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     } catch (error) {
       console.error('Error getting words for root:', error);
       return [];
+    }
+  },
+
+  // Check if a root exists in a dictionary (for safe source resolution)
+  checkRootExists: async (dictionaryName: string, root: string): Promise<boolean> => {
+    const { db } = get();
+    if (!db) {
+      console.error('Database not initialized');
+      return false;
+    }
+
+    try {
+      const row = await db.getFirstAsync<{ count: number }>(`
+        SELECT COUNT(*) as count
+        FROM roots r
+        JOIN dictionaries d ON r.dictionary_id = d.id
+        WHERE d.name = ? AND r.root = ?
+      `, [dictionaryName, root]);
+
+      return (row?.count ?? 0) > 0;
+    } catch (error) {
+      console.error('Error checking root exists:', error);
+      return false;
+    }
+  },
+
+  // Check if a word exists in indexed roots (for safe source resolution)
+  checkWordExists: async (word: string): Promise<boolean> => {
+    const { db } = get();
+    if (!db) {
+      console.error('Database not initialized');
+      return false;
+    }
+
+    try {
+      const row = await db.getFirstAsync<{ count: number }>(`
+        SELECT COUNT(*) as count
+        FROM words w
+        JOIN roots r ON w.root_id = r.id
+        WHERE w.word = ? AND r.first_word_position >= 0
+      `, [word]);
+
+      return (row?.count ?? 0) > 0;
+    } catch (error) {
+      console.error('Error checking word exists:', error);
+      return false;
     }
   },
 }));

@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 import { Ionicons } from '@expo/vector-icons';
-import { getFlexDirection } from '@/utils/rtl';
 import { useState } from 'react';
 import { useAudioStore } from '@store/audioStore';
 
@@ -118,15 +117,15 @@ export function AudioHeader({
         )}
       </View>
 
-      <View style={[styles.controlsRow, { flexDirection: getFlexDirection() }]}>
+      <View style={[styles.controlsRow, { flexDirection: 'row-reverse' }]}>
         <Pressable
           style={[styles.filterButton, { backgroundColor: theme.colors.background }]}
           onPress={() => setShowFilters(!showFilters)}
         >
-          <Ionicons name="options" size={20} color={theme.colors.primary} />
           <Text style={[styles.filterButtonText, { color: theme.colors.primary }]}>
             {t('common.filter')}
           </Text>
+          <Ionicons name="options" size={20} color={theme.colors.primary} />
         </Pressable>
 
         <Pressable
@@ -134,14 +133,14 @@ export function AudioHeader({
           onPress={handleDownloadAll}
           disabled={isDownloadingAll}
         >
+          <Text style={[styles.filterButtonText, { color: theme.colors.primary }]}>
+            {t('audio.downloadAll')}
+          </Text>
           {isDownloadingAll ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
           ) : (
             <Ionicons name="download" size={20} color={theme.colors.primary} />
           )}
-          <Text style={[styles.filterButtonText, { color: theme.colors.primary }]}>
-            {t('audio.downloadAll')}
-          </Text>
         </Pressable>
 
         <Pressable
@@ -149,6 +148,14 @@ export function AudioHeader({
           onPress={handleDeleteAll}
           disabled={isDeletingAll || downloadedCount === 0}
         >
+          <Text
+            style={[
+              styles.filterButtonText,
+              { color: downloadedCount > 0 ? theme.colors.error : theme.colors.textSecondary },
+            ]}
+          >
+            {t('audio.deleteAll')}
+          </Text>
           {isDeletingAll ? (
             <ActivityIndicator size="small" color={theme.colors.error} />
           ) : (
@@ -158,14 +165,6 @@ export function AudioHeader({
               color={downloadedCount > 0 ? theme.colors.error : theme.colors.textSecondary}
             />
           )}
-          <Text
-            style={[
-              styles.filterButtonText,
-              { color: downloadedCount > 0 ? theme.colors.error : theme.colors.textSecondary },
-            ]}
-          >
-            {t('audio.deleteAll')}
-          </Text>
         </Pressable>
       </View>
 
@@ -184,7 +183,7 @@ export function AudioHeader({
             <Text style={[styles.filterLabel, { color: theme.colors.textSecondary }]}>
               {t('audio.sortBy')}
             </Text>
-            <View style={[styles.filterOptions, { flexDirection: getFlexDirection() }]}>
+            <View style={[styles.filterOptions, { flexDirection: 'row-reverse' }]}>
               <Pressable
                 style={[
                   styles.filterOption,
@@ -248,7 +247,7 @@ export function AudioHeader({
             <Text style={[styles.filterLabel, { color: theme.colors.textSecondary }]}>
               {t('common.filter')}
             </Text>
-            <View style={[styles.filterOptions, { flexDirection: getFlexDirection() }]}>
+            <View style={[styles.filterOptions, { flexDirection: 'row-reverse' }]}>
               <Pressable
                 style={[
                   styles.filterOption,

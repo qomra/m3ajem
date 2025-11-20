@@ -1,7 +1,10 @@
 import { create } from 'zustand';
+import * as SQLite from 'expo-sqlite';
 import { ChatService } from '@services/chat/ChatService';
 import { ChatRepository } from '@services/database/ChatRepository';
 import { APIKeyStorage } from '@services/storage/apiKeyStorage';
+import { TwoDatabaseMigrationRunner } from '@services/database/TwoDatabaseMigrationRunner';
+import { OneTimeChatMigration } from '@services/database/OneTimeChatMigration';
 import type {
   Conversation,
   ConversationWithStats,
@@ -12,6 +15,10 @@ import type { APIConfig, APIProvider } from '@services/storage/apiKeyStorage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 interface ChatState {
+  // Database
+  userDb: SQLiteDatabase | null;
+  isUserDbInitialized: boolean;
+
   // Services
   chatService: ChatService | null;
 
@@ -24,7 +31,7 @@ interface ChatState {
   isSending: boolean;
 
   // Actions
-  initializeChat: (db: SQLiteDatabase) => void;
+  initializeChat: (dictionaryDb: SQLiteDatabase) => Promise<void>;
   loadConversations: () => Promise<void>;
   createNewConversation: (provider: APIProvider) => Promise<string>;
   selectConversation: (conversationId: string) => Promise<void>;
@@ -38,6 +45,8 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   // Initial state
+  userDb: null,
+  isUserDbInitialized: false,
   chatService: null,
   currentConversation: null,
   conversations: [],
@@ -46,13 +55,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
   isSending: false,
 
-  // Initialize chat service
-  initializeChat: (db: SQLiteDatabase) => {
-    const repository = new ChatRepository(db);
-    const chatService = new ChatService(repository, db);
+  // Initialize chat service with separate user database
+  initializeChat: async (dictionaryDb: SQLiteDatabase) => {
+    try {
+      console.log('Opening user database...');
 
-    set({ chatService });
-    console.log('✓ Chat service initialized with dictionary agent');
+      // Open user.db (stored in app's SQLite directory, not bundled with app)
+      const userDb = await SQLite.openDatabaseAsync('user.db');
+
+      // Run user database migrations (creates chat tables)
+      console.log('Running user database migrations...');
+      await TwoDatabaseMigrationRunner.runUserMigrations(userDb);
+
+      // Run one-time migration to move chat data from dictionary.db to user.db
+      // This only runs for existing users with old schema, fresh installs skip it
+      await OneTimeChatMigration.migrate(dictionaryDb, userDb);
+
+      // Create chat repository with user database
+      const repository = new ChatRepository(userDb);
+
+      // Create chat service with user db (for messages) and dictionary db (for dictionary lookups)
+      const chatService = new ChatService(repository, dictionaryDb);
+
+      set({
+        userDb,
+        isUserDbInitialized: true,
+        chatService
+      });
+      console.log('✓ Chat service initialized with user database and dictionary agent');
+    } catch (error) {
+      console.error('Error initializing chat:', error);
+      throw error;
+    }
   },
 
   // Load all conversations
@@ -143,8 +177,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // Add user message to UI immediately (optimistic update)
     const currentMessages = get().messages;
+
+    // Create temporary assistant message for progressive updates
+    const tempAssistantMessage: MessageWithContexts = {
+      id: `temp_assistant_${Date.now()}`,
+      conversation_id: currentConversation.id,
+      role: 'assistant',
+      content: '', // Will be filled when complete
+      timestamp: Date.now(),
+      thoughts: [], // Will be updated progressively
+      contextIds: [],
+    };
+
     set({
-      messages: [...currentMessages, tempUserMessage],
+      messages: [...currentMessages, tempUserMessage, tempAssistantMessage],
       isSending: true,
     });
 
@@ -155,12 +201,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
         throw new Error('API configuration not found');
       }
 
+      // Callback to update thoughts in real-time
+      const handleThoughtUpdate = (thought: any) => {
+        const currentState = get();
+        const updatedMessages = currentState.messages.map(msg => {
+          if (msg.id === tempAssistantMessage.id) {
+            return {
+              ...msg,
+              thoughts: [...(msg.thoughts || []), thought],
+            };
+          }
+          return msg;
+        });
+        set({ messages: updatedMessages });
+      };
+
       // Send message (this will save user message to DB and get AI response)
       const { userMessage, assistantMessage } = await chatService.sendMessage(
         currentConversation.id,
         content,
         apiConfig,
-        contextIds
+        contextIds,
+        handleThoughtUpdate // Pass the callback for real-time thought updates
       );
 
       // Replace temp message with real messages from DB

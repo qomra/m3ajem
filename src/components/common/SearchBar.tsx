@@ -1,6 +1,5 @@
 import { View, TextInput, StyleSheet, Pressable, Text } from 'react-native';
 import { useTheme } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 
 interface SearchBarProps {
   value: string;
@@ -14,7 +13,12 @@ export function SearchBar({ value, onChangeText, placeholder, onClear, autoFocus
   const theme = useTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, flexDirection: 'row' }]}>
+      {value.length > 0 && onClear && (
+        <Pressable style={[styles.clearButton, { backgroundColor: theme.colors.textSecondary }]} onPress={onClear}>
+          <Text style={[styles.clearButtonText, { color: theme.colors.background }]}>✕</Text>
+        </Pressable>
+      )}
       <TextInput
         style={[styles.input, { color: theme.colors.text, textAlign: 'right' }]}
         value={value}
@@ -23,11 +27,6 @@ export function SearchBar({ value, onChangeText, placeholder, onClear, autoFocus
         placeholderTextColor={theme.colors.textSecondary}
         autoFocus={autoFocus}
       />
-      {value.length > 0 && onClear && (
-        <Pressable style={[styles.clearButton, { backgroundColor: theme.colors.textSecondary }]} onPress={onClear}>
-          <Text style={[styles.clearButtonText, { color: theme.colors.background }]}>✕</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -51,7 +50,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginRight: 8,
   },
   clearButtonText: {
     fontSize: 14,

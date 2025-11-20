@@ -3,6 +3,8 @@
  * Universal types for tool/function calling across providers
  */
 
+import type { Source } from '@/types/sources';
+
 // Tool Definition (sent to LLM)
 export interface Tool {
   name: string;
@@ -35,9 +37,16 @@ export interface ToolResult {
   tool_call_id: string; // Matches ToolCall.id
   name: string; // Tool name
   result: any; // Tool execution result
+  sources?: Source[]; // Sources used by this tool
+}
+
+// Tool Execution Result (internal)
+export interface ToolExecutionResult {
+  text: string; // Result text for LLM
+  sources?: Source[]; // Sources to attach to message
 }
 
 // Tool Executor Interface
 export interface ToolExecutor {
-  execute(args: Record<string, any>): Promise<any>;
+  execute(args: Record<string, any>): Promise<ToolExecutionResult>;
 }

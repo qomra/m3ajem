@@ -110,7 +110,7 @@ export class DictionaryLookupService {
           rootId: row.root_id,
           definition: row.definition,
           positions,
-          snippets: isShort ? [] : this.extractSnippets(row.definition, word, positions),
+          snippets: isShort ? [] : this.extractSnippets(row.definition, row.word, positions),
           isShortDefinition: isShort,
         };
       });
@@ -139,12 +139,15 @@ export class DictionaryLookupService {
 
   /**
    * Extract context snippets around word occurrences
+   * The positions array contains character indices in the definition where the word appears
    */
   private extractSnippets(
     definition: string,
-    word: string,
+    wordWithDiacritics: string,
     positions: number[]
   ): DefinitionSnippet[] {
+    const normalizedSearchWord = this.removeDiacritics(wordWithDiacritics);
+
     return positions.slice(0, 3).map((pos) => {
       // Limit to first 3 occurrences
       const before = definition.substring(
@@ -152,14 +155,33 @@ export class DictionaryLookupService {
         pos
       );
 
+      // Extract word from definition starting at position
+      // Find word boundary by matching normalized characters
+      let endPos = pos;
+      let normalizedExtracted = '';
+
+      while (endPos < definition.length && normalizedExtracted.length < normalizedSearchWord.length) {
+        const char = definition[endPos];
+        const normalizedChar = this.removeDiacritics(char);
+
+        // Only count non-diacritic characters
+        if (normalizedChar) {
+          normalizedExtracted += normalizedChar;
+        }
+        endPos++;
+      }
+
+      // Extract the actual word with diacritics
+      const actualWord = definition.substring(pos, endPos);
+
       const after = definition.substring(
-        pos + word.length,
-        Math.min(definition.length, pos + word.length + SNIPPET_CONTEXT_LENGTH)
+        endPos,
+        Math.min(definition.length, endPos + SNIPPET_CONTEXT_LENGTH)
       );
 
       return {
         before: before.startsWith(definition) ? before : '...' + before,
-        word,
+        word: actualWord, // Actual word from definition (with diacritics)
         after: after.endsWith(definition.substring(definition.length)) ? after : after + '...',
         position: pos,
       };

@@ -1,10 +1,9 @@
 import { View, Text, StyleSheet, Pressable, FlatList, StatusBar } from 'react-native';
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { SearchBar } from '@components/common/SearchBar';
-import { getFlexDirection } from '@/utils/rtl';
 
 export default function DictionaryDetail() {
   const theme = useTheme();
@@ -12,11 +11,26 @@ export default function DictionaryDetail() {
   const router = useRouter();
   const { dictionaryName } = useLocalSearchParams<{ dictionaryName: string }>();
 
-  const { dictionaries } = useDictionaryStore();
+  const { getRootsForDictionary } = useDictionaryStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [allRoots, setAllRoots] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const disabledItemsRef = useRef<Set<string>>(new Set());
   const [, forceUpdate] = useState({});
+
+  // Load roots for this dictionary
+  useEffect(() => {
+    const loadRoots = async () => {
+      if (dictionaryName) {
+        setIsLoading(true);
+        const roots = await getRootsForDictionary(dictionaryName);
+        setAllRoots(roots);
+        setIsLoading(false);
+      }
+    };
+    loadRoots();
+  }, [dictionaryName, getRootsForDictionary]);
 
   // Reset disabled items when screen comes back into focus
   useFocusEffect(
@@ -25,18 +39,6 @@ export default function DictionaryDetail() {
       forceUpdate({});
     }, [])
   );
-
-  // Find the dictionary
-  const dictionary = useMemo(
-    () => dictionaries.find(d => d.name === dictionaryName),
-    [dictionaries, dictionaryName]
-  );
-
-  // Get all roots
-  const allRoots = useMemo(() => {
-    if (!dictionary) return [];
-    return Object.keys(dictionary.data).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [dictionary]);
 
   // Filter roots based on search
   const filteredRoots = useMemo(() => {
@@ -68,18 +70,6 @@ export default function DictionaryDetail() {
   const handleClearSearch = () => {
     setSearchQuery('');
   };
-
-  if (!dictionary) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
-            {t('errors.notFound')}
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

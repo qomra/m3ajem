@@ -2,18 +2,27 @@ import { View, Text, StyleSheet, Pressable, FlatList, StatusBar, Animated } from
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
-import { useDictionaryStore } from '@store/dictionaryStore';
+import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { DictionaryCard } from '@components/dictionaries/DictionaryCard';
 import { InfoModal } from '@components/modals/InfoModal';
 import { GlobalSearch } from '@components/dictionaries/GlobalSearch';
-import { getFlexDirection } from '@/utils/rtl';
 
 export default function DictionariesList() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { dictionaries, metadata, isLoadingDictionaries, isLoadingMetadata } = useDictionaryStore();
+  const { dictionaries, metadata, isLoadingDictionaries, isLoadingMetadata, loadDictionaries, loadMetadata } = useDictionaryStore();
+
+  // Load dictionaries and metadata on mount
+  useEffect(() => {
+    if (dictionaries.length === 0) {
+      loadDictionaries();
+    }
+    if (!metadata) {
+      loadMetadata();
+    }
+  }, []);
 
   const [selectedDictionary, setSelectedDictionary] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -77,8 +86,7 @@ export default function DictionariesList() {
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{t('dictionaries.title')}</Text>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, flexDirection: 'row' }]}>
         <Pressable
           style={[styles.searchButton, { backgroundColor: theme.colors.primary }]}
           onPress={handleShowSearch}
@@ -87,6 +95,7 @@ export default function DictionariesList() {
             {t('dictionaries.searchButton')}
           </Text>
         </Pressable>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{t('dictionaries.title')}</Text>
       </View>
 
       {/* Dictionaries List */}

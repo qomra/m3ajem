@@ -42,6 +42,7 @@ export class GroqProvider extends BaseProvider {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Groq API full error:', JSON.stringify(errorData, null, 2));
         throw new Error(
           `Groq API error: ${response.status} - ${errorData.error?.message || response.statusText}`
         );
@@ -127,6 +128,7 @@ export class GroqProvider extends BaseProvider {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('Groq API full error:', JSON.stringify(errorData, null, 2));
         throw new Error(
           `Groq API error: ${response.status} - ${errorData.error?.message || response.statusText}`
         );

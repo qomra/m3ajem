@@ -4,9 +4,6 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useTranslation } from '@hooks';
@@ -46,62 +43,53 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   const canSend = message.trim().length > 0 && !isSending && !disabled;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.card,
+          borderTopColor: theme.colors.border,
+        },
+      ]}
     >
       <View
         style={[
-          styles.container,
+          styles.inputContainer,
           {
-            backgroundColor: theme.colors.card,
-            borderTopColor: theme.colors.border,
+            backgroundColor: theme.colors.background,
+            borderColor: theme.colors.border,
           },
         ]}
       >
-        <View
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, { color: theme.colors.text }]}
+          placeholder={t('smart.inputPlaceholder')}
+          placeholderTextColor={theme.colors.textTertiary}
+          value={message}
+          onChangeText={setMessage}
+          onFocus={onFocus}
+          multiline
+          maxLength={2000}
+          editable={!disabled && !isSending}
+          textAlign="right"
+        />
+
+        <Pressable
           style={[
-            styles.inputContainer,
+            styles.sendButton,
             {
-              backgroundColor: theme.colors.background,
-              borderColor: theme.colors.border,
+              backgroundColor: canSend ? theme.colors.primary : theme.colors.background,
+              opacity: canSend ? 1 : 0.5,
             },
           ]}
+          onPress={handleSend}
+          disabled={!canSend}
         >
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, { color: theme.colors.text }]}
-            placeholder={t('smart.inputPlaceholder')}
-            placeholderTextColor={theme.colors.textTertiary}
-            value={message}
-            onChangeText={setMessage}
-            onFocus={onFocus}
-            multiline
-            maxLength={2000}
-            editable={!disabled && !isSending}
-            textAlign="right"
-          />
-
-          <Pressable
-            style={[
-              styles.sendButton,
-              {
-                backgroundColor: canSend ? theme.colors.primary : theme.colors.background,
-                opacity: canSend ? 1 : 0.5,
-              },
-            ]}
-            onPress={handleSend}
-            disabled={!canSend}
-          >
-            {isSending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="send" size={20} color={canSend ? '#FFFFFF' : theme.colors.textTertiary} />
-            )}
-          </Pressable>
-        </View>
+          <Ionicons name="send" size={20} color={canSend ? '#FFFFFF' : theme.colors.textTertiary} />
+        </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 });
 

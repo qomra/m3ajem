@@ -2,7 +2,6 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { useState } from 'react';
 import { useTheme, useTranslation } from '@hooks';
 import { useAudioStore } from '@store/audioStore';
-import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -75,12 +74,8 @@ export function AudioRootCard({
       }
     ]}>
       <Pressable onPress={handleCardPress} disabled={isDisabled}>
-        <View style={[styles.header, { flexDirection: getFlexDirection() }]}>
-          <View style={styles.info}>
-            <Text style={[styles.rootText, { color: theme.colors.text }]}>{root}</Text>
-          </View>
-
-          <View style={[styles.controls, { flexDirection: getFlexDirection() }]}>
+        <View style={[styles.header, { flexDirection: 'row' }]}>
+          <View style={[styles.controls, { flexDirection: 'row' }]}>
             {/* Delete button - only show when downloaded */}
             {isDownloaded && !isDownloading && (
               <Pressable
@@ -120,6 +115,10 @@ export function AudioRootCard({
                 />
               )}
             </Pressable>
+          </View>
+
+          <View style={styles.info}>
+            <Text style={[styles.rootText, { color: theme.colors.text }]}>{root}</Text>
           </View>
         </View>
       </Pressable>

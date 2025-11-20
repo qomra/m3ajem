@@ -7,6 +7,7 @@ interface DefinitionCardProps {
   word: string;
   relatedWords?: string[];
   highlightEnabled: boolean;
+  highlightMode?: 'word' | 'root'; // 'word' = highlight single word, 'root' = highlight all words
   currentOccurrenceIndex?: number;
   totalOccurrences?: number;
   scrollViewRef?: React.RefObject<ScrollView>;
@@ -20,6 +21,7 @@ export function DefinitionCard({
   word,
   relatedWords = [],
   highlightEnabled,
+  highlightMode = 'word',
   currentOccurrenceIndex = 0,
   totalOccurrences = 0,
   scrollViewRef,
@@ -34,6 +36,15 @@ export function DefinitionCard({
   const [layoutReady, setLayoutReady] = useState(false);
   const lastScrolledWordRef = useRef<string>('');
   const lastScrolledOccurrenceRef = useRef<number>(-1);
+
+  // Pre-process definition: add newlines after periods BEFORE highlighting
+  const processedDefinition = useMemo(() => {
+    if (!definition) return '';
+    return definition.split('.').map((sentence, idx, arr) => {
+      const trimmed = sentence.trim();
+      return trimmed ? (idx < arr.length - 1 ? trimmed + '.\n\n' : trimmed) : '';
+    }).join('');
+  }, [definition]);
 
   // Reset layout ready when definition changes (different root)
   useEffect(() => {
@@ -133,12 +144,15 @@ export function DefinitionCard({
   const highlightedDefinition = useMemo(() => {
     const parts: Array<{ text: string; type: 'none' | 'main' | 'related'; occurrenceIndex?: number }> = [];
 
-    // Create a combined list of words (main word always, related words only if enabled)
+    // In 'root' mode: highlight all related words as 'main' (green)
+    // In 'word' mode: highlight only the current word as 'main', others as 'related' (yellow)
     const allWords = highlightEnabled
-      ? [word, ...relatedWords.filter(w => w !== word)]
+      ? (highlightMode === 'root'
+          ? [word, ...relatedWords.filter(w => w !== word)] // All words in root mode
+          : [word, ...relatedWords.filter(w => w !== word)]) // Current word + related in word mode
       : [word];
 
-    if (allWords.length === 0) return definition;
+    if (allWords.length === 0) return processedDefinition;
 
     // Helper: Remove diacritics
     const removeDiacritics = (str: string) =>
@@ -182,7 +196,9 @@ export function DefinitionCard({
     const wordMap = new Map<string, { originalWord: string; isMain: boolean }>();
 
     allWords.forEach((w, idx) => {
-      const isMain = idx === 0;
+      // In root mode: all words are 'main' (green)
+      // In word mode: only first word (idx 0) is 'main', others are 'related' (yellow)
+      const isMain = highlightMode === 'root' ? true : idx === 0;
       const variants = generateVariants(w);
       variants.forEach(variant => {
         if (!wordMap.has(variant)) {
@@ -245,11 +261,11 @@ export function DefinitionCard({
     let match;
     const mainWordOccurrenceCounts = new Map<string, number>();
 
-    while ((match = regex.exec(definition)) !== null) {
+    while ((match = regex.exec(processedDefinition)) !== null) {
       // Add text before match
       if (match.index > lastIndex) {
         parts.push({
-          text: definition.substring(lastIndex, match.index),
+          text: processedDefinition.substring(lastIndex, match.index),
           type: 'none',
         });
       }
@@ -331,15 +347,15 @@ export function DefinitionCard({
     }
 
     // Add remaining text
-    if (lastIndex < definition.length) {
+    if (lastIndex < processedDefinition.length) {
       parts.push({
-        text: definition.substring(lastIndex),
+        text: processedDefinition.substring(lastIndex),
         type: 'none',
       });
     }
 
     return parts;
-  }, [definition, word, relatedWords, highlightEnabled, currentOccurrenceIndex, totalOccurrences]);
+  }, [processedDefinition, word, relatedWords, highlightEnabled, highlightMode, currentOccurrenceIndex, totalOccurrences]);
 
   return (
     <View

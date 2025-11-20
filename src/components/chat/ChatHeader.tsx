@@ -9,18 +9,22 @@ interface ChatHeaderProps {
   currentConversation: Conversation | null;
   hasAPIKey: boolean;
   availableProviders: APIProvider[];
+  hasMessages: boolean;
   onNewConversation: () => void;
   onShowConversations: () => void;
   onShowProviderSelector: () => void;
+  onShowResources: () => void;
 }
 
 export function ChatHeader({
   currentConversation,
   hasAPIKey,
   availableProviders,
+  hasMessages,
   onNewConversation,
   onShowConversations,
   onShowProviderSelector,
+  onShowResources,
 }: ChatHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -44,6 +48,11 @@ export function ChatHeader({
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
+        {/* Resources button */}
+        <Pressable onPress={onShowResources} style={styles.headerButton}>
+          <Ionicons name="cube-outline" size={24} color={theme.colors.text} />
+        </Pressable>
+
         {/* Provider selector button */}
         {hasAPIKey && availableProviders.length > 1 && (
           <Pressable onPress={onShowProviderSelector} style={styles.headerButton}>
@@ -56,9 +65,17 @@ export function ChatHeader({
           <Ionicons name="chatbubbles-outline" size={24} color={theme.colors.text} />
         </Pressable>
 
-        {/* New conversation button */}
-        <Pressable onPress={onNewConversation} style={styles.headerButton}>
-          <Ionicons name="add-outline" size={24} color={theme.colors.text} />
+        {/* New conversation button - disabled if current conversation has no messages */}
+        <Pressable
+          onPress={onNewConversation}
+          style={styles.headerButton}
+          disabled={!hasMessages}
+        >
+          <Ionicons
+            name="add-outline"
+            size={24}
+            color={hasMessages ? theme.colors.text : theme.colors.textTertiary}
+          />
         </Pressable>
       </View>
     </View>

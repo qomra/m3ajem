@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 import { Ionicons } from '@expo/vector-icons';
 
 interface RootCardProps {
@@ -11,6 +10,7 @@ interface RootCardProps {
   isExpanded: boolean;
   onToggleExpand: () => void;
   onWordPress: (word: string) => void;
+  onRootPress?: () => void; // Navigate to root mode
 }
 
 export function RootCard({
@@ -20,30 +20,35 @@ export function RootCard({
   isExpanded,
   onToggleExpand,
   onWordPress,
+  onRootPress,
 }: RootCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
   return (
     <View>
-      <Pressable
+      <View
         style={[styles.rootCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={onToggleExpand}
       >
-        <View style={[styles.rootHeader, { flexDirection: getFlexDirection() }]}>
-          <View style={styles.rootInfo}>
+        <View style={[styles.rootHeader, { flexDirection: 'row' }]}>
+          {/* Chevron - Click to expand/collapse */}
+          <Pressable onPress={onToggleExpand} style={styles.chevronButton}>
+            <Ionicons
+              name={isExpanded ? 'chevron-up' : 'chevron-down'}
+              size={24}
+              color={theme.colors.primary}
+            />
+          </Pressable>
+
+          {/* Root Info - Click to navigate to root mode */}
+          <Pressable style={styles.rootInfo} onPress={onRootPress}>
             <Text style={[styles.rootText, { color: theme.colors.text, textAlign: 'right' }]}>{root}</Text>
             <Text style={[styles.wordCount, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
               {wordCount} {t('indexed.wordsInRoot')}
             </Text>
-          </View>
-          <Ionicons
-            name={isExpanded ? 'chevron-up' : 'chevron-down'}
-            size={24}
-            color={theme.colors.primary}
-          />
+          </Pressable>
         </View>
-      </Pressable>
+      </View>
 
       {isExpanded && (
         <View style={styles.wordsList}>
@@ -76,6 +81,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  chevronButton: {
+    padding: 4,
+  },
   rootInfo: {
     flex: 1,
   },
@@ -90,7 +98,7 @@ const styles = StyleSheet.create({
   wordsList: {
     marginTop: 12,
     marginBottom: 12,
-    paddingLeft: 36,
+    paddingRight: 36,
     gap: 6,
   },
   wordItem: {

@@ -47,29 +47,20 @@ cd "$PROJECT_ROOT"
 echo -e "${BLUE}📦 Running expo prebuild with clean...${NC}"
 npx expo prebuild --platform ios --clean
 
-# Step 2: Fix RTL support in Info.plist and AppDelegate
-echo -e "${BLUE}🔧 Configuring RTL support...${NC}"
-/usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion ar" ios/maajm/Info.plist
-
-# Patch AppDelegate.swift using Python script
-python3 "$SCRIPT_DIR/patch-rtl.py" ios/maajm/AppDelegate.swift
-
-echo -e "${GREEN}✅ RTL configured in Info.plist and AppDelegate${NC}"
-
-# Step 3: Update CFBundleLocalizations to ensure Arabic is first
+# Step 2: Configure localization (removed forced RTL)
 echo -e "${BLUE}🌐 Configuring localization preferences...${NC}"
 /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" ios/maajm/Info.plist 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" ios/maajm/Info.plist
 /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:0 string ar" ios/maajm/Info.plist
 /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:1 string en" ios/maajm/Info.plist
-echo -e "${GREEN}✅ Localizations configured${NC}"
+echo -e "${GREEN}✅ Localizations configured (Arabic as primary)${NC}"
 
-# Step 4: Install pods
+# Step 3: Install pods
 echo -e "${BLUE}📚 Installing CocoaPods dependencies...${NC}"
 cd ios && pod install && cd ..
 echo -e "${GREEN}✅ Pods installed${NC}"
 
-# Step 5: Configure code signing and build settings
+# Step 4: Configure code signing and build settings
 echo -e "${BLUE}🔐 Configuring code signing and build settings...${NC}"
 
 # Get the project file path
@@ -91,7 +82,7 @@ fi
 
 echo -e "${GREEN}✅ Code signing configured (automatic)${NC}"
 
-# Step 6: Create/Update schemes
+# Step 5: Create/Update schemes
 echo -e "${BLUE}📋 Configuring Xcode schemes...${NC}"
 
 SCHEME_DIR="ios/maajm.xcodeproj/xcshareddata/xcschemes"
@@ -109,20 +100,18 @@ fi
 
 echo -e "${GREEN}✅ Schemes configured${NC}"
 
-# Step 7: Summary
+# Step 6: Summary
 echo ""
 echo -e "${GREEN}✨ Build process complete!${NC}"
 echo -e "${YELLOW}📋 Summary:${NC}"
 echo -e "  • iOS project rebuilt and cleaned"
-echo -e "  • RTL support configured (CFBundleDevelopmentRegion: ar)"
-echo -e "  • RTL injected into AppDelegate.swift"
 echo -e "  • Arabic set as primary localization"
 echo -e "  • CocoaPods dependencies installed"
 echo -e "  • Code signing set to Automatic"
 echo -e "  • Build configuration: $BUILD_CONFIG"
 echo ""
 
-# Step 8: Open Xcode (optional)
+# Step 7: Open Xcode (optional)
 if [ "$SKIP_XCODE" = false ]; then
   echo -e "${BLUE}🔨 Opening Xcode...${NC}"
   open ios/maajm.xcworkspace

@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useTheme, useTranslation } from '@hooks';
-import { getFlexDirection } from '@/utils/rtl';
 
 interface InfoModalProps {
   visible: boolean;
@@ -115,11 +114,11 @@ export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: Info
         </View>
 
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: theme.colors.border, flexDirection: getFlexDirection() }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border, flexDirection: 'row' }]}>
           <Pressable style={styles.closeButton} onPress={onClose}>
             <Text style={[styles.closeButtonText, { color: theme.colors.primary }]}>✕</Text>
           </Pressable>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text, flex: 1, textAlign: 'right' }]}>
             {t('dictionaries.dictionaryInfo')}
           </Text>
         </View>
@@ -130,9 +129,9 @@ export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: Info
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.dictionaryName, { color: theme.colors.text }]}>{dictionaryName}</Text>
+          <Text style={[styles.dictionaryName, { color: theme.colors.text, textAlign: 'right' }]}>{dictionaryName}</Text>
 
-          <View style={[styles.statsRow, { flexDirection: getFlexDirection() }]}>
+          <View style={[styles.statsRow, { flexDirection: 'row', justifyContent: 'flex-end' }]}>
             <Text style={[styles.statsValue, { color: theme.colors.primary }]}>
               {rootsCount.toLocaleString('ar-SA')}
             </Text>
@@ -163,32 +162,32 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.7,
+    height: '50%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   draggerContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   dragger: {
     width: 40,
-    height: 5,
-    borderRadius: 2.5,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
   },
   closeButton: {
     padding: 4,

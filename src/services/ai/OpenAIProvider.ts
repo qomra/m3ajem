@@ -4,7 +4,7 @@ import type { Tool, ToolCall } from '@/agents/tools/types';
 
 /**
  * OpenAI Provider implementation
- * Supports GPT-4.5 model
+ * Supports GPT-4, GPT-4o, GPT-5, o1 models
  */
 export class OpenAIProvider extends BaseProvider {
   private readonly apiUrl = 'https://api.openai.com/v1/chat/completions';
@@ -17,27 +17,55 @@ export class OpenAIProvider extends BaseProvider {
     return this.apiKey.startsWith('sk-');
   }
 
+  /**
+   * Check if model uses max_completion_tokens (o1 series, GPT-5)
+   * or max_tokens (older models like GPT-4, GPT-4o)
+   */
+  private usesMaxCompletionTokens(): boolean {
+    const model = this.model.toLowerCase();
+    return model.includes('o1') || model.includes('gpt-5');
+  }
+
   async sendMessage(messages: ProviderMessage[]): Promise<ProviderResponse> {
     if (!this.validateApiKey()) {
       throw new Error('Invalid OpenAI API key format');
     }
 
     try {
+      // Build request body with correct token parameter based on model
+      const requestBody: any = {
+        model: this.model,
+        messages: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+      };
+
+      // GPT-5 models: Set reasoning_effort to minimal for faster responses
+      if (this.model.toLowerCase().includes('gpt-5')) {
+        requestBody.reasoning_effort = 'minimal';
+      }
+
+      // GPT-5 and o1 models only support temperature = 1 (default)
+      // Other models support custom temperature
+      if (!this.usesMaxCompletionTokens()) {
+        requestBody.temperature = this.temperature;
+      }
+
+      // Use appropriate token parameter based on model
+      if (this.usesMaxCompletionTokens()) {
+        requestBody.max_completion_tokens = this.maxTokens;
+      } else {
+        requestBody.max_tokens = this.maxTokens;
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-          temperature: this.temperature,
-          max_tokens: this.maxTokens,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -112,20 +140,39 @@ export class OpenAIProvider extends BaseProvider {
         },
       }));
 
+      // Build request body with correct token parameter based on model
+      const requestBody: any = {
+        model: this.model,
+        messages: openaiMessages,
+        tools: openaiTools,
+        tool_choice: 'auto',
+      };
+
+      // GPT-5 models: Set reasoning_effort to minimal for faster responses
+      if (this.model.toLowerCase().includes('gpt-5')) {
+        requestBody.reasoning_effort = 'minimal';
+      }
+
+      // GPT-5 and o1 models only support temperature = 1 (default)
+      // Other models support custom temperature
+      if (!this.usesMaxCompletionTokens()) {
+        requestBody.temperature = this.temperature;
+      }
+
+      // Use appropriate token parameter based on model
+      if (this.usesMaxCompletionTokens()) {
+        requestBody.max_completion_tokens = this.maxTokens;
+      } else {
+        requestBody.max_tokens = this.maxTokens;
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages: openaiMessages,
-          tools: openaiTools,
-          tool_choice: 'auto',
-          temperature: this.temperature,
-          max_tokens: this.maxTokens,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

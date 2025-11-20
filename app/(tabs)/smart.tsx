@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTranslation, useTheme } from '@hooks';
 import { useChatStore } from '@store/chatStore';
 import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
@@ -10,6 +10,7 @@ import { ContextIndicator } from '@components/chat/ContextIndicator';
 import { ChatHeader } from '@components/chat/ChatHeader';
 import { ConversationsModal } from '@components/chat/ConversationsModal';
 import { ProviderSelectorModal } from '@components/chat/ProviderSelectorModal';
+import { ResourceManagerModal } from '@components/resources/ResourceManagerModal';
 import type { APIProvider } from '@services/storage/apiKeyStorage';
 import { useRouter, useFocusEffect } from 'expo-router';
 
@@ -43,6 +44,7 @@ export default function SmartScreen() {
   // UI state
   const [showConversations, setShowConversations] = useState(false);
   const [showProviderSelector, setShowProviderSelector] = useState(false);
+  const [showResources, setShowResources] = useState(false);
   const [hasAPIKey, setHasAPIKey] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<APIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<APIProvider>('groq');
@@ -184,30 +186,38 @@ export default function SmartScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ChatHeader
-        currentConversation={currentConversation}
-        hasAPIKey={hasAPIKey}
-        availableProviders={availableProviders}
-        onNewConversation={handleNewConversation}
-        onShowConversations={() => setShowConversations(true)}
-        onShowProviderSelector={() => setShowProviderSelector(true)}
-      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ChatHeader
+          currentConversation={currentConversation}
+          hasAPIKey={hasAPIKey}
+          availableProviders={availableProviders}
+          hasMessages={messages.length > 0}
+          onNewConversation={handleNewConversation}
+          onShowConversations={() => setShowConversations(true)}
+          onShowProviderSelector={() => setShowProviderSelector(true)}
+          onShowResources={() => setShowResources(true)}
+        />
 
-      <ContextIndicator
-        contexts={activeContexts}
-        onRemove={removeContext}
-        onClearAll={clearActiveContexts}
-      />
+        <ContextIndicator
+          contexts={activeContexts}
+          onRemove={removeContext}
+          onClearAll={clearActiveContexts}
+        />
 
-      <MessageList messages={messages} isLoading={isLoading} isSending={isSending} />
+        <MessageList messages={messages} isLoading={isLoading} isSending={isSending} />
 
-      <ChatInput
-        ref={inputRef}
-        onSend={handleSendMessage}
-        onFocus={handleInputFocus}
-        isSending={isSending}
-        disabled={!hasAPIKey}
-      />
+        <ChatInput
+          ref={inputRef}
+          onSend={handleSendMessage}
+          onFocus={handleInputFocus}
+          isSending={isSending}
+          disabled={!hasAPIKey}
+        />
+      </KeyboardAvoidingView>
 
       <ConversationsModal
         visible={showConversations}
@@ -224,6 +234,11 @@ export default function SmartScreen() {
         availableProviders={availableProviders}
         onClose={() => setShowProviderSelector(false)}
         onSelect={handleProviderSelect}
+      />
+
+      <ResourceManagerModal
+        visible={showResources}
+        onClose={() => setShowResources(false)}
       />
     </SafeAreaView>
   );

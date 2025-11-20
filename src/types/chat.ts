@@ -1,4 +1,6 @@
 import { APIProvider } from '@services/storage/apiKeyStorage';
+import type { Source } from './sources';
+import type { AgentThought } from '@agents/BaseAgent';
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type ContextType = 'definition' | 'root' | 'word';
@@ -9,6 +11,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   timestamp: number;
+  sources?: Source[]; // Sources referenced in this message
 }
 
 export interface Conversation {
@@ -36,6 +39,8 @@ export interface ContextMetadata {
 
 export interface MessageWithContexts extends Message {
   contextIds?: string[];
+  thoughts?: AgentThought[]; // LLM reasoning steps (stored in DB as JSON)
+  duration?: number; // Response duration in milliseconds (stored in DB)
 }
 
 export interface ConversationWithStats extends Conversation {

@@ -76,7 +76,7 @@ export class ChatRepository {
     return this.messageRepo.getByConversation(conversationId);
   }
 
-  async getMessage(id: string): Promise<Message | null> {
+  async getMessage(id: string): Promise<MessageWithContexts | null> {
     return this.messageRepo.getById(id);
   }
 

@@ -23,14 +23,20 @@ interface Dictionary {
   data: Record<string, string>; // root -> definition
 }
 
-// Index data: dict name -> root -> words[]
-type IndexData = Record<string, Record<string, string[]>>;
+// Index data: dict name -> root -> word data with positions
+interface WordPositionData {
+  word: string;
+  position: number; // Character position of first occurrence in definition
+}
+
+type IndexData = Record<string, Record<string, WordPositionData[]>>;
 
 // Processed index data for quick access
 interface ProcessedIndexWord {
   word: string;
   root: string;
   dictionaryName: string;
+  firstOccurrencePos: number;
 }
 
 interface ProcessedIndexRoot {
@@ -38,6 +44,7 @@ interface ProcessedIndexRoot {
   dictionaryName: string;
   words: string[];
   wordCount: number;
+  firstOccurrencePos: number; // Position of earliest word in this root
 }
 
 interface DictionaryState {
@@ -97,29 +104,13 @@ const CACHE_KEYS = {
   extracted: '@m3ajem/extracted',
 };
 
-const CACHE_VERSION = '1.0.0'; // Increment this when data format changes
+const CACHE_VERSION = '2.0.0-uncompressed'; // Increment this when data format changes
 
 async function loadGzippedJSON<T>(
   assetModule: number,
-  cacheKey: string,
   onProgress?: (progress: number) => void
 ): Promise<T> {
   try {
-    // Check if cached version matches
-    const cachedVersion = await AsyncStorage.getItem(CACHE_KEYS.version);
-
-    if (cachedVersion === CACHE_VERSION) {
-      // Try to load from cache
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        console.log('Loading from cache:', cacheKey);
-        onProgress?.(100);
-        return JSON.parse(cached) as T;
-      }
-    }
-
-    console.log('Cache miss or version mismatch, loading from asset...');
-
     onProgress?.(10);
 
     // Load the asset
@@ -130,8 +121,6 @@ async function loadGzippedJSON<T>(
       throw new Error('Failed to download asset - no localUri');
     }
 
-    console.log('Loading asset from:', asset.localUri);
-
     onProgress?.(30);
 
     // Read file using new File API
@@ -141,26 +130,19 @@ async function loadGzippedJSON<T>(
     const bytes = await file.arrayBuffer();
     const uint8Array = new Uint8Array(bytes);
 
-    console.log('Decompressing', uint8Array.length, 'bytes...');
-
     onProgress?.(50);
 
     // Decompress using pako
     const decompressed = pako.ungzip(uint8Array, { to: 'string' });
 
-    console.log('Decompressed to', decompressed.length, 'characters');
-
     onProgress?.(80);
 
-    // Cache the decompressed data
-    console.log('Caching data for next launch...');
-    await AsyncStorage.setItem(cacheKey, decompressed);
-    await AsyncStorage.setItem(CACHE_KEYS.version, CACHE_VERSION);
+    // Parse JSON (no caching - this is the key optimization)
+    const data = JSON.parse(decompressed) as T;
 
     onProgress?.(100);
 
-    // Parse JSON
-    return JSON.parse(decompressed) as T;
+    return data;
   } catch (error) {
     console.error('Error loading gzipped JSON:', error);
     throw error;
@@ -192,13 +174,27 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
   extractionProgress: 0,
   extractionStep: '',
 
-  // Check if extraction is needed
+  // Check if extraction is needed (only on first launch)
   checkExtractionNeeded: async () => {
     try {
       const extracted = await AsyncStorage.getItem(CACHE_KEYS.extracted);
       const cachedVersion = await AsyncStorage.getItem(CACHE_KEYS.version);
 
+      // Force clear cache if version doesn't match
+      if (cachedVersion !== CACHE_VERSION) {
+        console.log('Version mismatch, clearing cache...');
+        await AsyncStorage.multiRemove([
+          CACHE_KEYS.metadata,
+          CACHE_KEYS.searchIndex,
+          CACHE_KEYS.dictionaries,
+          CACHE_KEYS.index,
+          CACHE_KEYS.extracted,
+          CACHE_KEYS.version,
+        ]);
+      }
+
       const needsExtraction = !extracted || cachedVersion !== CACHE_VERSION;
+
       set({ needsExtraction });
     } catch (error) {
       console.error('Error checking extraction:', error);
@@ -256,18 +252,16 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Load metadata (fast, ~500B compressed)
+  // Load metadata
   loadMetadata: async (onProgress?: (progress: number) => void) => {
-    console.log('Starting metadata load...');
     set({ isLoadingMetadata: true, metadataError: null });
     try {
       const data = await loadGzippedJSON<{
         maajem_stats: {
           dictionaries: Record<string, DictionaryMetadata>;
         };
-      }>(ASSET_MODULES.metadata, CACHE_KEYS.metadata, onProgress);
+      }>(ASSET_MODULES.metadata, onProgress);
 
-      console.log('Metadata loaded successfully:', Object.keys(data.maajem_stats.dictionaries).length, 'dictionaries');
       set({
         metadata: data.maajem_stats.dictionaries,
         isLoadingMetadata: false,
@@ -282,14 +276,12 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Load search index (medium, ~6MB compressed)
+  // Load search index
   loadSearchIndex: async (onProgress?: (progress: number) => void) => {
-    console.log('Starting search index load...');
     set({ isLoadingSearchIndex: true, searchIndexError: null });
     try {
-      const data = await loadGzippedJSON<SearchIndex>(ASSET_MODULES.searchIndex, CACHE_KEYS.searchIndex, onProgress);
+      const data = await loadGzippedJSON<SearchIndex>(ASSET_MODULES.searchIndex, onProgress);
 
-      console.log('Search index loaded successfully');
       set({
         searchIndex: data,
         isLoadingSearchIndex: false,
@@ -304,14 +296,12 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Load dictionaries (large, ~19MB compressed)
+  // Load dictionaries
   loadDictionaries: async (onProgress?: (progress: number) => void) => {
-    console.log('Starting dictionaries load...');
     set({ isLoadingDictionaries: true, dictionariesError: null });
     try {
-      const data = await loadGzippedJSON<Dictionary[]>(ASSET_MODULES.maajem, CACHE_KEYS.dictionaries, onProgress);
+      const data = await loadGzippedJSON<Dictionary[]>(ASSET_MODULES.maajem, onProgress);
 
-      console.log('Dictionaries loaded successfully:', data.length, 'dictionaries');
       set({
         dictionaries: data,
         isLoadingDictionaries: false,
@@ -326,50 +316,82 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Load index data (medium, ~1MB compressed)
+  // Load index data
   loadIndex: async (onProgress?: (progress: number) => void) => {
-    console.log('Starting index load...');
     set({ isLoadingIndex: true, indexError: null });
     try {
-      const data = await loadGzippedJSON<IndexData>(ASSET_MODULES.index, CACHE_KEYS.index, onProgress);
-
-      console.log('Processing index data...');
+      const data = await loadGzippedJSON<IndexData>(ASSET_MODULES.index, onProgress);
 
       // Process data into flat arrays for quick access
       const words: ProcessedIndexWord[] = [];
       const roots: ProcessedIndexRoot[] = [];
 
       Object.entries(data).forEach(([dictName, rootsData]) => {
-        Object.entries(rootsData).forEach(([root, wordList]) => {
+        Object.entries(rootsData).forEach(([root, wordDataList]) => {
+          // Extract just the word strings for the root
+          const wordStrings = wordDataList.map(wd => wd.word);
+
+          // Find the earliest position among all words in this root
+          const positions = wordDataList.map(wd => wd.position);
+          const firstRootPosition = Math.min(...positions);
+
           // Add to roots array
           roots.push({
             root,
             dictionaryName: dictName,
-            words: wordList,
-            wordCount: wordList.length,
+            words: wordStrings,
+            wordCount: wordStrings.length,
+            firstOccurrencePos: firstRootPosition,
           });
 
-          // Add each word to words array
-          wordList.forEach(word => {
-            words.push({ word, root, dictionaryName: dictName });
+          // Add each word to words array with its position
+          wordDataList.forEach(({ word, position }) => {
+            words.push({
+              word,
+              root,
+              dictionaryName: dictName,
+              firstOccurrencePos: position,
+            });
           });
         });
       });
 
-      // Sort arrays
-      // Flatten view: sort by word alphabetically
-      words.sort((a, b) => a.word.localeCompare(b.word, 'ar'));
+      // Sort roots by first occurrence position
+      roots.sort((a, b) => {
+        const posCompare = a.firstOccurrencePos - b.firstOccurrencePos;
+        if (posCompare !== 0) return posCompare;
+        return a.root.localeCompare(b.root, 'ar');
+      });
 
-      // Grouped view: sort by root first, then by word within each root
-      const wordsGrouped = [...words].sort((a, b) => {
-        const rootCompare = a.root.localeCompare(b.root, 'ar');
-        if (rootCompare !== 0) return rootCompare;
+      // Create root position lookup for efficient sorting
+      const rootPositionMap = new Map<string, number>();
+      roots.forEach((r, index) => {
+        rootPositionMap.set(`${r.dictionaryName}:${r.root}`, index);
+      });
+
+      // Sort words: first by root position, then by word position within that root
+      words.sort((a, b) => {
+        // First, group by root (using the root's sorted position)
+        const aRootPos = rootPositionMap.get(`${a.dictionaryName}:${a.root}`) ?? 0;
+        const bRootPos = rootPositionMap.get(`${b.dictionaryName}:${b.root}`) ?? 0;
+
+        if (aRootPos !== bRootPos) {
+          return aRootPos - bRootPos;
+        }
+
+        // Within same root, sort by word position
+        const wordPosCompare = a.firstOccurrencePos - b.firstOccurrencePos;
+        if (wordPosCompare !== 0) return wordPosCompare;
+
+        // Fall back to alphabetical
         return a.word.localeCompare(b.word, 'ar');
       });
 
-      roots.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
+      // Use same sorted list for navigation
+      const wordsGrouped = words;
 
       console.log('Index processed successfully:', words.length, 'words,', roots.length, 'roots');
+
       set({
         indexData: data,
         processedWords: words,

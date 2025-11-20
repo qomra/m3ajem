@@ -13,11 +13,6 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    // Enable RTL support
-    RCTI18nUtil.sharedInstance().allowRTL(true)
-    // Force RTL at UIView level
-    UIView.appearance().semanticContentAttribute = .forceRightToLeft
-
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
