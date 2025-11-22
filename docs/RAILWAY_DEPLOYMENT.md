@@ -38,10 +38,11 @@ git push origin main
    - Select your `m3ajem` repository
    - Railway will detect it automatically
 
-4. **Configure the Service:**
-   - Railway auto-detects Dockerfile
-   - Set **Root Directory**: `server`
-   - Railway will ask if you want to use the Dockerfile - say YES
+4. **Configure the Service (IMPORTANT!):**
+   - ⚠️ **CRITICAL**: Set **Root Directory** to `server` (in Settings → Service Settings)
+   - Without this, Railway will try to build the React Native app instead of Python server!
+   - Railway should auto-detect the Dockerfile
+   - If asked about build method, choose **"Dockerfile"**
 
 5. **Add PostgreSQL Database:**
    - In your project, click **"+ New"**
@@ -131,10 +132,17 @@ git push
 
 ## 🐛 Troubleshooting
 
+### "npm error" or "node_modules" errors
+**This means Railway is building from the wrong directory!**
+- Go to **Settings** → **Service Settings**
+- Set **Root Directory** to `server`
+- Redeploy
+- Railway was trying to build the React Native app instead of the Python server
+
 ### "Build Failed"
 - Check Railway logs (click on deployment)
 - Make sure `Dockerfile` is in `server/` folder
-- Verify Root Directory is set to `server`
+- Verify Root Directory is set to `server` (most common issue!)
 
 ### "Database connection error"
 - Railway sets `DATABASE_URL` automatically
