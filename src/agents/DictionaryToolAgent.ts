@@ -130,7 +130,7 @@ export class DictionaryToolAgent extends BaseAgent {
       const allSources: Source[] = []; // Collect sources from all iterations
       const thoughts: AgentThought[] = []; // Collect LLM reasoning steps
 
-      while (response.toolCalls && iteration < MAX_ITERATIONS) {
+      while (response.toolCalls && response.toolCalls.length > 0 && iteration < MAX_ITERATIONS) {
         iteration++;
         console.log(`Tool calling iteration ${iteration}:`, response.toolCalls);
 
