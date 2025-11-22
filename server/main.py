@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
@@ -101,7 +101,10 @@ async def debug_config():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, authorization: Optional[str] = None):
+async def chat(
+    request: ChatRequest,
+    authorization: Optional[str] = Header(None)
+):
     """
     Gateway endpoint for chat requests.
     Requires authentication via JWT token in Authorization header.
