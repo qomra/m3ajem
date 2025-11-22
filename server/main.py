@@ -287,6 +287,10 @@ async def forward_to_provider(
                     *transformed_messages
                 ]
 
+            # GPT-5 models: Set reasoning_effort to minimal for faster responses
+            if "gpt-5" in config["model"].lower():
+                payload["reasoning_effort"] = "minimal"
+
             if tools:
                 # Transform tools to OpenAI format
                 # App sends: {"name": "...", "description": "...", "parameters": {...}}
@@ -300,10 +304,14 @@ async def forward_to_provider(
                 ]
 
             # Log the request for debugging
+            print(f"\n{'='*50}")
             print(f"Sending request to OpenAI:")
             print(f"  Model: {config['model']}")
-            print(f"  Messages: {payload['messages']}")
-            print(f"  Tools: {payload.get('tools', 'None')}")
+            print(f"  Number of messages: {len(payload['messages'])}")
+            print(f"  Message roles: {[m['role'] for m in payload['messages']]}")
+            print(f"  Last message content: {payload['messages'][-1].get('content', '')[:100]}")
+            print(f"  Number of tools: {len(payload.get('tools', []))}")
+            print(f"{'='*50}\n")
 
             response = await client.post(
                 f"{config['base_url']}/chat/completions",
@@ -335,6 +343,10 @@ async def forward_to_provider(
                     }
                     for tc in message["tool_calls"]
                 ]
+                print(f"OpenAI returned {len(result['tool_calls'])} tool calls")
+
+            print(f"OpenAI response - Content: {result.get('content', '')[:100]}")
+            print(f"OpenAI response - Tool calls: {len(result['tool_calls'])}")
 
             return result
 
