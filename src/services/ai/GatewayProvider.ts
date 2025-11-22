@@ -85,9 +85,9 @@ export class GatewayProvider implements AIProvider {
   }
 
   async executeToolCall(toolCall: any, toolExecutor: any): Promise<string> {
-    // Tool execution happens on the server
-    // This shouldn't be called for gateway provider
-    throw new Error('Tool execution should happen on the gateway server');
+    // Execute tools locally (client-side) just like other providers
+    // The server only forwards requests to OpenAI, it doesn't execute tools
+    return await toolExecutor.executeToolCall(toolCall);
   }
 
   async sendMessageWithTools(
