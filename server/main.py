@@ -79,6 +79,22 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/debug/config")
+async def debug_config():
+    """Debug endpoint to check environment variables (hide actual keys)"""
+    return {
+        "default_provider": DEFAULT_PROVIDER,
+        "providers": {
+            provider: {
+                "api_key_set": bool(config["api_key"]),
+                "api_key_length": len(config["api_key"]) if config["api_key"] else 0,
+                "model": config["model"],
+            }
+            for provider, config in PROVIDER_CONFIGS.items()
+        }
+    }
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
