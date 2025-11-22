@@ -243,15 +243,48 @@ async def forward_to_provider(
                 "Content-Type": "application/json",
             }
 
+            # Transform messages to OpenAI format
+            # Need to convert tool_calls in message history to OpenAI's format
+            transformed_messages = []
+            for msg in messages:
+                # Handle tool role messages specially
+                if msg["role"] == "tool":
+                    transformed_msg = {
+                        "role": "tool",
+                        "content": msg.get("content", ""),
+                        "tool_call_id": msg.get("tool_call_id", "call_0")
+                    }
+                else:
+                    transformed_msg = {
+                        "role": msg["role"],
+                        "content": msg.get("content", "")
+                    }
+
+                    # Transform tool_calls if present
+                    if "tool_calls" in msg and msg["tool_calls"]:
+                        transformed_msg["tool_calls"] = [
+                            {
+                                "id": f"call_{i}",  # Generate a simple ID
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("name"),
+                                    "arguments": tc.get("arguments") if isinstance(tc.get("arguments"), str) else json.dumps(tc.get("arguments", {}))
+                                }
+                            }
+                            for i, tc in enumerate(msg["tool_calls"])
+                        ]
+
+                transformed_messages.append(transformed_msg)
+
             payload = {
                 "model": config["model"],
-                "messages": messages,
+                "messages": transformed_messages,
             }
 
             if system_prompt:
                 payload["messages"] = [
                     {"role": "system", "content": system_prompt},
-                    *messages
+                    *transformed_messages
                 ]
 
             if tools:
