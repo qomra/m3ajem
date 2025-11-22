@@ -4,6 +4,7 @@ import { OpenAIProvider } from './OpenAIProvider';
 import { AnthropicProvider } from './AnthropicProvider';
 import { GoogleProvider } from './GoogleProvider';
 import { GroqProvider } from './GroqProvider';
+import { GatewayProvider } from './GatewayProvider';
 
 /**
  * Factory for creating AI provider instances
@@ -30,6 +31,9 @@ export class ProviderFactory {
 
       case 'groq':
         return new GroqProvider(providerConfig);
+
+      case 'gateway':
+        return new GatewayProvider();
 
       default:
         throw new Error(`Unsupported provider: ${config.provider}`);

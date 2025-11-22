@@ -10,6 +10,7 @@ interface ChatHeaderProps {
   hasAPIKey: boolean;
   availableProviders: APIProvider[];
   hasMessages: boolean;
+  rateLimitInfo: { current: number; limit: number } | null;
   onNewConversation: () => void;
   onShowConversations: () => void;
   onShowProviderSelector: () => void;
@@ -21,6 +22,7 @@ export function ChatHeader({
   hasAPIKey,
   availableProviders,
   hasMessages,
+  rateLimitInfo,
   onNewConversation,
   onShowConversations,
   onShowProviderSelector,
@@ -42,7 +44,9 @@ export function ChatHeader({
         </Text>
         {currentConversation && (
           <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-            {t(`settings.apiConfig.model.${currentConversation.provider}`)}
+            {currentConversation.provider === 'gateway' && rateLimitInfo
+              ? `${t('smart.rateLimit')}: ${rateLimitInfo.current}/${rateLimitInfo.limit}`
+              : t(`settings.apiConfig.model.${currentConversation.provider}`)}
           </Text>
         )}
       </View>

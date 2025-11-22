@@ -4,6 +4,7 @@ import { useTranslation, useTheme } from '@hooks';
 import { useChatStore } from '@store/chatStore';
 import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { APIKeyStorage } from '@services/storage/apiKeyStorage';
+import { GatewayAuthService } from '@services/auth/GatewayAuthService';
 import { MessageList } from '@components/chat/MessageList';
 import { ChatInput, ChatInputRef } from '@components/chat/ChatInput';
 import { ContextIndicator } from '@components/chat/ContextIndicator';
@@ -11,6 +12,7 @@ import { ChatHeader } from '@components/chat/ChatHeader';
 import { ConversationsModal } from '@components/chat/ConversationsModal';
 import { ProviderSelectorModal } from '@components/chat/ProviderSelectorModal';
 import { ResourceManagerModal } from '@components/resources/ResourceManagerModal';
+import { AuthModeSelector } from '@components/auth/AuthModeSelector';
 import type { APIProvider } from '@services/storage/apiKeyStorage';
 import { useRouter, useFocusEffect } from 'expo-router';
 
@@ -45,9 +47,12 @@ export default function SmartScreen() {
   const [showConversations, setShowConversations] = useState(false);
   const [showProviderSelector, setShowProviderSelector] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [showAuthSelector, setShowAuthSelector] = useState(false);
   const [hasAPIKey, setHasAPIKey] = useState(false);
+  const [hasGatewayAuth, setHasGatewayAuth] = useState(false);
   const [availableProviders, setAvailableProviders] = useState<APIProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<APIProvider>('groq');
+  const [rateLimitInfo, setRateLimitInfo] = useState<{ current: number; limit: number } | null>(null);
   const inputRef = useRef<ChatInputRef>(null);
 
   // Initialize chat service
@@ -78,6 +83,7 @@ export default function SmartScreen() {
 
   const loadAPIConfig = async () => {
     try {
+      // Check for API keys
       const allConfigs = await APIKeyStorage.getAllConfigs();
 
       if (allConfigs) {
@@ -95,26 +101,43 @@ export default function SmartScreen() {
       } else {
         setHasAPIKey(false);
       }
+
+      // Check for gateway authentication
+      const isGatewayAuth = await GatewayAuthService.isAuthenticated();
+      setHasGatewayAuth(isGatewayAuth);
+
+      // Get rate limit info if authenticated with gateway
+      if (isGatewayAuth) {
+        const user = await GatewayAuthService.getCurrentUser();
+        if (user) {
+          setRateLimitInfo({
+            current: user.daily_requests,
+            limit: user.daily_limit,
+          });
+        }
+      } else {
+        setRateLimitInfo(null);
+      }
+
     } catch (error) {
       console.error('Error loading API config:', error);
       setHasAPIKey(false);
+      setHasGatewayAuth(false);
+      setRateLimitInfo(null);
     }
   };
 
   const handleNewConversation = async () => {
-    if (!hasAPIKey) {
-      Alert.alert(t('smart.configureAPI'), t('smart.goToSettings'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('smart.goToSettings'),
-          onPress: () => router.push('/settings'),
-        },
-      ]);
+    // Check if user has either API key or gateway auth
+    if (!hasAPIKey && !hasGatewayAuth) {
+      setShowAuthSelector(true);
       return;
     }
 
     try {
-      await createNewConversation(selectedProvider);
+      // Use gateway if authenticated, otherwise use selected provider
+      const provider = hasGatewayAuth ? 'gateway' : selectedProvider;
+      await createNewConversation(provider as any);
       setShowConversations(false);
       // Auto-focus input after creating conversation
       setTimeout(() => {
@@ -132,18 +155,43 @@ export default function SmartScreen() {
   };
 
   const handleInputFocus = async () => {
-    // Auto-create conversation if none exists and API key is configured
-    if (!currentConversation && hasAPIKey && chatService) {
+    // Check if user has either API key or gateway auth
+    if (!hasAPIKey && !hasGatewayAuth) {
+      setShowAuthSelector(true);
+      return;
+    }
+
+    // Auto-create conversation if none exists and auth is configured
+    if (!currentConversation && (hasAPIKey || hasGatewayAuth) && chatService) {
       try {
-        await createNewConversation(selectedProvider);
+        const provider = hasGatewayAuth ? 'gateway' : selectedProvider;
+        await createNewConversation(provider as any);
       } catch (error) {
         console.error('Error auto-creating conversation:', error);
       }
     }
   };
 
+  const handleAuthSuccess = async () => {
+    setShowAuthSelector(false);
+    // Reload config to detect gateway auth
+    await loadAPIConfig();
+    // Auto-create conversation
+    if (chatService) {
+      try {
+        await createNewConversation('gateway' as any);
+        // Auto-focus input
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      } catch (error) {
+        console.error('Error creating conversation after auth:', error);
+      }
+    }
+  };
+
   const handleSendMessage = async (content: string) => {
-    if (!currentConversation || !hasAPIKey) return;
+    if (!currentConversation || (!hasAPIKey && !hasGatewayAuth)) return;
 
     try {
       await sendMessage(content);
@@ -196,6 +244,7 @@ export default function SmartScreen() {
           hasAPIKey={hasAPIKey}
           availableProviders={availableProviders}
           hasMessages={messages.length > 0}
+          rateLimitInfo={rateLimitInfo}
           onNewConversation={handleNewConversation}
           onShowConversations={() => setShowConversations(true)}
           onShowProviderSelector={() => setShowProviderSelector(true)}
@@ -215,7 +264,7 @@ export default function SmartScreen() {
           onSend={handleSendMessage}
           onFocus={handleInputFocus}
           isSending={isSending}
-          disabled={!hasAPIKey}
+          disabled={!hasAPIKey && !hasGatewayAuth}
         />
       </KeyboardAvoidingView>
 
@@ -239,6 +288,12 @@ export default function SmartScreen() {
       <ResourceManagerModal
         visible={showResources}
         onClose={() => setShowResources(false)}
+      />
+
+      <AuthModeSelector
+        visible={showAuthSelector}
+        onClose={() => setShowAuthSelector(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
     </SafeAreaView>
   );

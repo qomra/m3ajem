@@ -195,10 +195,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      // Get API config
-      const apiConfig = await APIKeyStorage.getAPIConfig();
-      if (!apiConfig) {
-        throw new Error('API configuration not found');
+      // Get API config (or create gateway config if using gateway)
+      let apiConfig: APIConfig;
+
+      if (currentConversation.provider === 'gateway') {
+        // For gateway conversations, create a special config
+        apiConfig = {
+          provider: 'gateway',
+          apiKey: '', // Not needed for gateway
+          model: 'gateway',
+        };
+      } else {
+        // For regular conversations, get API config from storage
+        const storedConfig = await APIKeyStorage.getAPIConfig();
+        if (!storedConfig) {
+          throw new Error('API configuration not found');
+        }
+        apiConfig = storedConfig;
       }
 
       // Callback to update thoughts in real-time

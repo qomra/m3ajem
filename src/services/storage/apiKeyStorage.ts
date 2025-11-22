@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type APIProvider = 'openai' | 'anthropic' | 'groq' | 'google';
+export type APIProvider = 'openai' | 'anthropic' | 'groq' | 'google' | 'gateway';
 
 // Hard-coded models for each provider (Latest 2025 models)
 // Verified from official provider documentation
@@ -9,6 +9,7 @@ const PROVIDER_MODELS: Record<APIProvider, string> = {
   google: 'gemini-2.5-flash',                              // Google Gemini 2.5 Flash (stable)
   anthropic: 'claude-sonnet-4-5',                          // Anthropic Claude Sonnet 4.5 (Sept 2025)
   groq: 'meta-llama/llama-4-maverick-17b-128e-instruct',   // Meta Llama 4 Maverick on Groq (April 2025)
+  gateway: 'gateway',                                      // M3ajem Gateway (uses Groq backend)
 };
 
 export interface APIConfig {

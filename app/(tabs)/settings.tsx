@@ -16,6 +16,8 @@ import { APIConfigModal } from '@components/settings/APIConfigModal';
 import { SerpAPIConfigModal } from '@components/settings/SerpAPIConfigModal';
 import { APIKeyStorage } from '@services/storage/apiKeyStorage';
 import { SerpAPIStorage } from '@services/storage/serpApiStorage';
+import { GatewayAuthService } from '@services/auth/GatewayAuthService';
+import type { GatewayUser } from '@services/auth/GatewayAuthService';
 
 // Settings Section Component
 const SettingsSection = ({ title, children }: { title: string; children: React.ReactNode }) => {
@@ -90,10 +92,12 @@ export default function SettingsScreen() {
   const [showSerpAPIModal, setShowSerpAPIModal] = useState(false);
   const [hasAPIKey, setHasAPIKey] = useState(false);
   const [hasSerpAPI, setHasSerpAPI] = useState(false);
+  const [gatewayUser, setGatewayUser] = useState<GatewayUser | null>(null);
 
   useEffect(() => {
     loadAPIStatus();
     loadSerpAPIStatus();
+    loadGatewayUser();
   }, []);
 
   const loadAPIStatus = async () => {
@@ -104,6 +108,11 @@ export default function SettingsScreen() {
   const loadSerpAPIStatus = async () => {
     const serpConfig = await SerpAPIStorage.getConfig();
     setHasSerpAPI(!!serpConfig?.apiKey);
+  };
+
+  const loadGatewayUser = async () => {
+    const user = await GatewayAuthService.getCurrentUser();
+    setGatewayUser(user);
   };
 
   const handleAPIConfigSaved = () => {
@@ -191,6 +200,25 @@ export default function SettingsScreen() {
     } else {
       Alert.alert(t('common.error'), 'لا يمكن فتح الرابط');
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      t('smart.auth.signOut'),
+      t('settings.confirmLogout'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('smart.auth.signOut'),
+          style: 'destructive',
+          onPress: async () => {
+            await GatewayAuthService.clearToken();
+            setGatewayUser(null);
+            Alert.alert(t('common.success'), t('settings.logoutSuccess'));
+          },
+        },
+      ]
+    );
   };
 
   const handleAbout = () => {
@@ -295,6 +323,15 @@ export default function SettingsScreen() {
             subtitle={hasSerpAPI ? t('settings.serpapi.enabled') : t('settings.serpapi.description')}
             onPress={() => setShowSerpAPIModal(true)}
           />
+          {gatewayUser && (
+            <SettingsItem
+              icon="log-out-outline"
+              title={t('smart.auth.signOut')}
+              subtitle={`${t('smart.auth.signedInAs')} ${gatewayUser.email} • ${gatewayUser.daily_requests}/${gatewayUser.daily_limit} ${t('smart.rateLimit')}`}
+              onPress={handleLogout}
+              danger
+            />
+          )}
         </SettingsSection>
 
         {/* Data Section */}
