@@ -92,7 +92,7 @@ export function GoogleSignInButton({ onSuccess }: GoogleSignInButtonProps) {
       ) : (
         <>
           <Image
-            source={require('@assets/images/google.png')}
+            source={require('../../../assets/images/google.png')}
             style={styles.icon}
           />
           <Text style={[styles.buttonText, { color: '#000000' }]}>
