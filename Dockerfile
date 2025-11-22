@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy server requirements and install Python dependencies
-COPY server/requirements.txt .
+COPY ./server/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy server application code
-COPY server/ .
+COPY ./server ./
 
 # Expose port
 EXPOSE 8000
