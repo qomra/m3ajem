@@ -10,8 +10,10 @@ from typing import Optional, List, Dict, Any
 import httpx
 
 from database import engine, SessionLocal
-from models import Base, Conversation, Message, ToolCall
+from models import Base, Conversation, Message, ToolCall, User
 from schemas import ChatRequest, ChatResponse, ToolCallData
+from auth_routes import router as auth_router
+from auth import get_current_user, check_rate_limit
 
 # Initialize database
 @asynccontextmanager
@@ -37,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include auth routes
+app.include_router(auth_router)
 
 # Provider configurations
 PROVIDER_CONFIGS = {
@@ -96,14 +101,29 @@ async def debug_config():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, authorization: Optional[str] = None):
     """
     Gateway endpoint for chat requests.
+    Requires authentication via JWT token in Authorization header.
     Logs all communication and forwards to the configured LLM provider.
     """
     db = SessionLocal()
 
     try:
+        # Check authentication
+        user = get_current_user(authorization, db)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required. Please sign in with Google or Apple."
+            )
+
+        # Check rate limit (30 requests/day)
+        if not check_rate_limit(user, db):
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily rate limit exceeded (30 requests/day). Try again tomorrow."
+            )
         provider = request.provider or DEFAULT_PROVIDER
 
         if provider not in PROVIDER_CONFIGS:

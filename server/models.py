@@ -1,9 +1,29 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    # Auth provider info (either google_id OR apple_id will be set)
+    auth_provider = Column(String, nullable=False)  # 'google' or 'apple'
+    google_id = Column(String, unique=True, nullable=True, index=True)
+    apple_id = Column(String, unique=True, nullable=True, index=True)
+
+    email = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_used = Column(DateTime, default=datetime.utcnow, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Daily request tracking
+    daily_requests = Column(Integer, default=0, nullable=False)
+    daily_reset_date = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Conversation(Base):
