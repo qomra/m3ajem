@@ -11,6 +11,9 @@ JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_DAYS = 30
 
+# Rate Limit Configuration
+DAILY_REQUEST_LIMIT = int(os.getenv("DAILY_REQUEST_LIMIT", "30"))
+
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -65,12 +68,10 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
 
 def check_rate_limit(user: User, db: Session) -> bool:
     """
-    Check if user has exceeded daily rate limit (30 requests/day).
+    Check if user has exceeded daily rate limit.
     Returns True if within limit, False if exceeded.
     Resets counter if it's a new day.
     """
-    DAILY_LIMIT = 30
-
     # Check if we need to reset the daily counter
     now = datetime.utcnow()
     if user.daily_reset_date.date() < now.date():
@@ -79,7 +80,7 @@ def check_rate_limit(user: User, db: Session) -> bool:
         user.daily_reset_date = now
 
     # Check if limit exceeded
-    if user.daily_requests >= DAILY_LIMIT:
+    if user.daily_requests >= DAILY_REQUEST_LIMIT:
         return False
 
     # Increment counter

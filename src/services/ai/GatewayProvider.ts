@@ -45,7 +45,7 @@ export class GatewayProvider implements AIProvider {
         throw new Error('Session expired. Please sign in again.');
       }
       if (response.status === 429) {
-        throw new Error('Daily rate limit exceeded (30 requests/day). Try again tomorrow.');
+        throw new Error('Daily rate limit exceeded. Try again tomorrow.');
       }
       const error = await response.json();
       throw new Error(error.detail || 'Gateway request failed');

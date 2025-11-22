@@ -8,7 +8,7 @@ from datetime import datetime
 
 from database import SessionLocal
 from models import User
-from auth import create_jwt_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+from auth import create_jwt_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, DAILY_REQUEST_LIMIT
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -186,7 +186,7 @@ async def google_mobile_auth(id_token: str, db: Session = Depends(get_db)):
             "id": user.id,
             "email": user.email,
             "daily_requests": user.daily_requests,
-            "daily_limit": 30,
+            "daily_limit": DAILY_REQUEST_LIMIT,
         },
     )
 
@@ -249,7 +249,7 @@ async def apple_mobile_auth(
             "id": user.id,
             "email": user.email,
             "daily_requests": user.daily_requests,
-            "daily_limit": 30,
+            "daily_limit": DAILY_REQUEST_LIMIT,
         },
     )
 
@@ -271,6 +271,6 @@ async def get_current_user_info(
         "email": user.email,
         "provider": user.auth_provider,
         "daily_requests": user.daily_requests,
-        "daily_limit": 30,
+        "daily_limit": DAILY_REQUEST_LIMIT,
         "created_at": user.created_at.isoformat(),
     }

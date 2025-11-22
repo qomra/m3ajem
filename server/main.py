@@ -13,7 +13,7 @@ from database import engine, SessionLocal
 from models import Base, Conversation, Message, ToolCall, User
 from schemas import ChatRequest, ChatResponse, ToolCallData
 from auth_routes import router as auth_router
-from auth import get_current_user, check_rate_limit
+from auth import get_current_user, check_rate_limit, DAILY_REQUEST_LIMIT
 
 # Initialize database
 @asynccontextmanager
@@ -121,12 +121,27 @@ async def chat(
                 detail="Authentication required. Please sign in with Google or Apple."
             )
 
-        # Check rate limit (30 requests/day)
-        if not check_rate_limit(user, db):
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily rate limit exceeded (30 requests/day). Try again tomorrow."
-            )
+        # Only count rate limit for initial user questions, not tool execution follow-ups
+        # Tool execution follow-ups have tool results in the message history
+        is_tool_followup = False
+        if len(request.messages) >= 2:
+            # Check if the second-to-last message is an assistant message with tool calls
+            # and the last message is a tool response
+            second_last = request.messages[-2] if len(request.messages) >= 2 else None
+            last = request.messages[-1] if request.messages else None
+
+            if (last and last.get('role') == 'tool' and
+                second_last and second_last.get('role') == 'assistant' and
+                second_last.get('tool_calls')):
+                is_tool_followup = True
+
+        # Only check rate limit for new user questions, not tool execution iterations
+        if not is_tool_followup:
+            if not check_rate_limit(user, db):
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily rate limit exceeded ({DAILY_REQUEST_LIMIT} requests/day). Try again tomorrow."
+                )
         provider = request.provider or DEFAULT_PROVIDER
 
         if provider not in PROVIDER_CONFIGS:
