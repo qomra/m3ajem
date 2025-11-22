@@ -179,6 +179,33 @@
     },
     "thoughtProcess": {
       "title": "مخطط البحث"
+    },
+    "auth": {
+      "welcome": "مرحباً بك في معاجم",
+      "chooseMode": "اختر طريقة الاستخدام",
+      "chooseHowToUse": "اختر كيف تريد استخدام المساعد الذكي",
+      "useOwnKeys": "استخدام مفاتيح API الخاصة",
+      "useOwnKeysDesc": "استخدم مفاتيح OpenAI أو Google أو Anthropic الخاصة بك",
+      "unlimitedRequests": "طلبات غير محدودة",
+      "privateConversations": "محادثات خاصة تماماً",
+      "useM3ajemService": "استخدام خدمة معاجم المجانية",
+      "useM3ajemServiceDesc": "استخدم خدمتنا المجانية بدون الحاجة لمفتاح API",
+      "free30PerDay": "30 طلب مجاني يومياً",
+      "noAPIKeyNeeded": "لا حاجة لمفتاح API",
+      "signIn": "تسجيل الدخول",
+      "signInToM3ajem": "تسجيل الدخول إلى معاجم",
+      "chooseSignInMethod": "اختر طريقة تسجيل الدخول",
+      "disclosure": "سنسجل محادثاتك بشكل مجهول لتحسين الخدمة. لن نشارك بياناتك مع أي جهة خارجية.",
+      "signInWithGoogle": "تسجيل الدخول بواسطة Google",
+      "signInWithApple": "تسجيل الدخول بواسطة Apple",
+      "termsText": "بتسجيل الدخول، أنت توافق على شروط الاستخدام وسياسة الخصوصية",
+      "success": "نجح",
+      "signedInSuccessfully": "تم تسجيل الدخول بنجاح",
+      "signInFailed": "فشل تسجيل الدخول",
+      "signedInAs": "مسجل الدخول بواسطة",
+      "signOut": "تسجيل الخروج",
+      "dailyLimit": "الحد اليومي",
+      "requestsUsed": "{used} من {limit} طلب مستخدم اليوم"
     }
   },
   "settings": {

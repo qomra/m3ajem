@@ -35,7 +35,9 @@ module.exports = {
       "expo-router",
       "expo-asset",
       "expo-secure-store",
-      ["expo-sqlite", { "withSQLiteVecExtension": true }]
+      ["expo-sqlite", { "withSQLiteVecExtension": true }],
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     experiments: {
       typedRoutes: true

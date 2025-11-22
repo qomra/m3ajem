@@ -28,18 +28,6 @@ export function SourceBottomSheet({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  // DEBUG
-  React.useEffect(() => {
-    if (visible) {
-      console.log('=== SourceBottomSheet OPEN ===');
-      console.log('Sources count:', sources?.length || 0);
-      console.log('Sources array:', sources);
-      if (sources && sources.length > 0) {
-        console.log('First source type:', sources[0].type);
-        console.log('First source data:', JSON.stringify(sources[0], null, 2));
-      }
-    }
-  }, [visible, sources]);
 
   const handleOpenURL = async (url: string) => {
     try {
@@ -211,9 +199,7 @@ export function SourceBottomSheet({
               </View>
             ) : (
               <>
-                {console.log('About to map sources:', sources.length)}
                 {sources.map((source, index) => {
-                  console.log(`Mapping source ${index}:`, source.id);
                   return (
                     <React.Fragment key={source.id}>
                       {renderSource(source)}
