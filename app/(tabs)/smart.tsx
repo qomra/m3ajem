@@ -132,9 +132,8 @@ export default function SmartScreen() {
     }
 
     try {
-      // Use gateway if authenticated, otherwise use selected provider
-      const provider = hasGatewayAuth ? 'gateway' : selectedProvider;
-      await createNewConversation(provider as any);
+      // Use the selected provider from dropdown
+      await createNewConversation(selectedProvider as any);
       setShowConversations(false);
       // Auto-focus input after creating conversation
       setTimeout(() => {
@@ -161,8 +160,8 @@ export default function SmartScreen() {
     // Auto-create conversation if none exists and auth is configured
     if (!currentConversation && (hasAPIKey || hasGatewayAuth) && chatService) {
       try {
-        const provider = hasGatewayAuth ? 'gateway' : selectedProvider;
-        await createNewConversation(provider as any);
+        // Use selected provider from dropdown
+        await createNewConversation(selectedProvider as any);
       } catch (error) {
         console.error('Error auto-creating conversation:', error);
       }
