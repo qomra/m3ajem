@@ -255,7 +255,16 @@ async def forward_to_provider(
                 ]
 
             if tools:
-                payload["tools"] = tools
+                # Transform tools to OpenAI format
+                # App sends: {"name": "...", "description": "...", "parameters": {...}}
+                # OpenAI expects: {"type": "function", "function": {"name": "...", "description": "...", "parameters": {...}}}
+                payload["tools"] = [
+                    {
+                        "type": "function",
+                        "function": tool
+                    }
+                    for tool in tools
+                ]
 
             # Log the request for debugging
             print(f"Sending request to OpenAI:")
