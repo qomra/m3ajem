@@ -210,6 +210,14 @@ async def chat(
 
     except Exception as e:
         db.rollback()
+        # Log the full error for debugging
+        import traceback
+        error_details = {
+            "error": str(e),
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+        print(f"ERROR in /chat endpoint: {error_details}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
@@ -249,12 +257,24 @@ async def forward_to_provider(
             if tools:
                 payload["tools"] = tools
 
+            # Log the request for debugging
+            print(f"Sending request to OpenAI:")
+            print(f"  Model: {config['model']}")
+            print(f"  Messages: {payload['messages']}")
+            print(f"  Tools: {payload.get('tools', 'None')}")
+
             response = await client.post(
                 f"{config['base_url']}/chat/completions",
                 headers=headers,
                 json=payload,
             )
-            response.raise_for_status()
+
+            if not response.is_success:
+                error_body = response.text
+                print(f"OpenAI API Error: {response.status_code}")
+                print(f"Error body: {error_body}")
+                response.raise_for_status()
+
             data = response.json()
 
             choice = data["choices"][0]
