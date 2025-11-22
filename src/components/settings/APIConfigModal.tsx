@@ -17,6 +17,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation, useTheme } from '@hooks';
 import { APIKeyStorage, APIProvider, AllAPIConfigs } from '@services/storage/apiKeyStorage';
+import { GatewayAuthService } from '@services/auth/GatewayAuthService';
+import { GoogleSignInButton } from '@components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '@components/auth/AppleSignInButton';
 
 interface APIConfigModalProps {
   visible: boolean;
@@ -25,6 +28,7 @@ interface APIConfigModalProps {
 }
 
 const API_PROVIDERS = [
+  { id: 'gateway' as APIProvider, name: 'معاجم', icon: 'cloud-outline' as keyof typeof Ionicons.glyphMap, color: '#8B5CF6' },
   { id: 'groq' as APIProvider, name: 'Groq', logo: require('../../../assets/images/groq.png'), color: '#F55036' },
   { id: 'openai' as APIProvider, name: 'OpenAI', logo: require('../../../assets/images/openai.png'), color: '#10A37F' },
   { id: 'anthropic' as APIProvider, name: 'Anthropic', logo: require('../../../assets/images/anthropic.png'), color: '#D97356' },
@@ -41,6 +45,7 @@ export function APIConfigModal({ visible, onClose, onSave }: APIConfigModalProps
   const [connectionStatuses, setConnectionStatuses] = useState<Record<string, 'idle' | 'success' | 'error'>>({});
   const [showSuccessColor, setShowSuccessColor] = useState<Record<string, boolean>>({});
   const [showApiKey, setShowApiKey] = useState(false);
+  const [hasGatewayAuth, setHasGatewayAuth] = useState(false);
 
   const currentApiKey = apiKeys[selectedProvider] || '';
   const currentConnectionStatus = connectionStatuses[selectedProvider] || 'idle';
@@ -53,10 +58,10 @@ export function APIConfigModal({ visible, onClose, onSave }: APIConfigModalProps
 
   const loadExistingConfig = async () => {
     const allConfigs = await APIKeyStorage.getAllConfigs();
-    if (allConfigs) {
-      const loadedApiKeys: Record<string, string> = {};
-      const loadedStatuses: Record<string, 'idle' | 'success' | 'error'> = {};
+    const loadedApiKeys: Record<string, string> = {};
+    const loadedStatuses: Record<string, 'idle' | 'success' | 'error'> = {};
 
+    if (allConfigs) {
       if (allConfigs.openai) {
         loadedApiKeys.openai = allConfigs.openai.apiKey;
         loadedStatuses.openai = 'success';
@@ -77,6 +82,14 @@ export function APIConfigModal({ visible, onClose, onSave }: APIConfigModalProps
       setApiKeys(loadedApiKeys);
       setConnectionStatuses(loadedStatuses);
       setSelectedProvider(allConfigs.currentProvider);
+    }
+
+    // Check for gateway authentication
+    const isGatewayAuth = await GatewayAuthService.isAuthenticated();
+    setHasGatewayAuth(isGatewayAuth);
+    if (isGatewayAuth) {
+      loadedStatuses.gateway = 'success';
+      setConnectionStatuses(loadedStatuses);
     }
   };
 
@@ -196,7 +209,11 @@ export function APIConfigModal({ visible, onClose, onSave }: APIConfigModalProps
                         </View>
                       )}
                       <View style={[styles.providerIcon, { backgroundColor: prov.color + '20' }]}>
-                        <Image source={prov.logo} style={styles.providerLogo} resizeMode="contain" />
+                        {'icon' in prov ? (
+                          <Ionicons name={prov.icon} size={24} color={prov.color} />
+                        ) : (
+                          <Image source={prov.logo} style={styles.providerLogo} resizeMode="contain" />
+                        )}
                       </View>
                       <Text style={[styles.providerName, { color: theme.colors.text }]}>{prov.name}</Text>
                       <Text style={[styles.providerModel, { color: theme.colors.textSecondary }]}>
@@ -207,70 +224,113 @@ export function APIConfigModal({ visible, onClose, onSave }: APIConfigModalProps
                 </View>
               </View>
 
-              {/* API Key Input */}
-              <View style={styles.section}>
-                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-                  {t('settings.apiConfig.apiKey')}
-                </Text>
-                <View style={[styles.apiKeyContainer, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                  <TextInput
-                    style={[styles.apiKeyInput, { color: theme.colors.text }]}
-                    placeholder={t('settings.apiConfig.enterApiKey')}
-                    placeholderTextColor={theme.colors.textTertiary}
-                    value={currentApiKey}
-                    onChangeText={(text) => {
-                      setApiKeys(prev => ({ ...prev, [selectedProvider]: text }));
-                      setConnectionStatuses(prev => ({ ...prev, [selectedProvider]: 'idle' }));
-                      setShowSuccessColor(prev => ({ ...prev, [selectedProvider]: false }));
-                    }}
-                    secureTextEntry={!showApiKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <Pressable onPress={() => setShowApiKey(!showApiKey)} style={styles.eyeButton}>
-                    <Ionicons name={showApiKey ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.testButton,
-                      {
-                        backgroundColor:
-                          currentConnectionStatus === 'success' && showSuccessColor[selectedProvider]
-                            ? '#10B981'
-                            : currentConnectionStatus === 'error'
-                            ? '#EF4444'
-                            : theme.colors.primary,
-                        opacity: !currentApiKey ? 0.5 : 1,
-                      },
-                    ]}
-                    onPress={handleTestConnection}
-                    disabled={isTestingConnection || !currentApiKey}
-                  >
-                    {isTestingConnection ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Ionicons
-                        name={
-                          currentConnectionStatus === 'success'
-                            ? 'checkmark'
-                            : currentConnectionStatus === 'error'
-                            ? 'close'
-                            : 'flash'
-                        }
-                        size={18}
-                        color="#FFFFFF"
+              {/* API Key Input or Gateway Auth */}
+              {selectedProvider === 'gateway' ? (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                    {t('smart.auth.signInToM3ajem')}
+                  </Text>
+                  {hasGatewayAuth ? (
+                    <View style={[styles.gatewayStatus, { backgroundColor: theme.colors.background, borderColor: '#10B981' }]}>
+                      <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                      <Text style={[styles.gatewayStatusText, { color: theme.colors.text }]}>
+                        {t('smart.auth.signedInSuccessfully')}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <GoogleSignInButton
+                        onSuccess={() => {
+                          setHasGatewayAuth(true);
+                          setConnectionStatuses(prev => ({ ...prev, gateway: 'success' }));
+                          loadExistingConfig();
+                          // Close modal and notify parent to reload
+                          setTimeout(() => {
+                            onClose();
+                          }, 1000); // Give user time to see success message
+                        }}
                       />
-                    )}
-                  </Pressable>
+                      {Platform.OS === 'ios' && (
+                        <AppleSignInButton
+                          onSuccess={() => {
+                            setHasGatewayAuth(true);
+                            setConnectionStatuses(prev => ({ ...prev, gateway: 'success' }));
+                            loadExistingConfig();
+                            // Close modal and notify parent to reload
+                            setTimeout(() => {
+                              onClose();
+                            }, 1000); // Give user time to see success message
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
                 </View>
-                <Text style={[styles.hint, { color: theme.colors.textTertiary }]}>
-                  {currentConnectionStatus === 'success'
-                    ? t('settings.apiConfig.connectionSuccess')
-                    : currentConnectionStatus === 'error'
-                    ? t('settings.apiConfig.connectionError')
-                    : t('settings.apiConfig.testConnection')}
-                </Text>
-              </View>
+              ) : (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                    {t('settings.apiConfig.apiKey')}
+                  </Text>
+                  <View style={[styles.apiKeyContainer, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                    <TextInput
+                      style={[styles.apiKeyInput, { color: theme.colors.text }]}
+                      placeholder={t('settings.apiConfig.enterApiKey')}
+                      placeholderTextColor={theme.colors.textTertiary}
+                      value={currentApiKey}
+                      onChangeText={(text) => {
+                        setApiKeys(prev => ({ ...prev, [selectedProvider]: text }));
+                        setConnectionStatuses(prev => ({ ...prev, [selectedProvider]: 'idle' }));
+                        setShowSuccessColor(prev => ({ ...prev, [selectedProvider]: false }));
+                      }}
+                      secureTextEntry={!showApiKey}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <Pressable onPress={() => setShowApiKey(!showApiKey)} style={styles.eyeButton}>
+                      <Ionicons name={showApiKey ? "eye-off-outline" : "eye-outline"} size={20} color={theme.colors.textTertiary} />
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.testButton,
+                        {
+                          backgroundColor:
+                            currentConnectionStatus === 'success' && showSuccessColor[selectedProvider]
+                              ? '#10B981'
+                              : currentConnectionStatus === 'error'
+                              ? '#EF4444'
+                              : theme.colors.primary,
+                          opacity: !currentApiKey ? 0.5 : 1,
+                        },
+                      ]}
+                      onPress={handleTestConnection}
+                      disabled={isTestingConnection || !currentApiKey}
+                    >
+                      {isTestingConnection ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Ionicons
+                          name={
+                            currentConnectionStatus === 'success'
+                              ? 'checkmark'
+                              : currentConnectionStatus === 'error'
+                              ? 'close'
+                              : 'flash'
+                          }
+                          size={18}
+                          color="#FFFFFF"
+                        />
+                      )}
+                    </Pressable>
+                  </View>
+                  <Text style={[styles.hint, { color: theme.colors.textTertiary }]}>
+                    {currentConnectionStatus === 'success'
+                      ? t('settings.apiConfig.connectionSuccess')
+                      : currentConnectionStatus === 'error'
+                      ? t('settings.apiConfig.connectionError')
+                      : t('settings.apiConfig.testConnection')}
+                  </Text>
+                </View>
+              )}
             </ScrollView>
 
             {/* Footer */}
@@ -412,6 +472,18 @@ const styles = StyleSheet.create({
   hint: {
     marginTop: 8,
     fontSize: 12,
+  },
+  gatewayStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+  },
+  gatewayStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

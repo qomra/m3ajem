@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
+import { ResponseType } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { useTheme, useTranslation } from '@hooks';
 import { GatewayAuthService } from '@services/auth/GatewayAuthService';
@@ -15,7 +16,13 @@ import { GatewayAuthService } from '@services/auth/GatewayAuthService';
 // Required for web browser to close properly after auth
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_CLIENT_ID = ''; // TODO: Add your Google OAuth client ID here
+// Google OAuth Client IDs for different platforms
+const GOOGLE_WEB_CLIENT_ID = '66379576970-7m435a4bq1qjhqissoq0nojjapta9jvt.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID = '865313393887-8d4jvuj4i85p53g5149ln400adfupe21.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = ''; // TODO: Create Android OAuth client with package name com.jalalirs.maajm
+
+// Use iOS client ID which supports custom URL schemes
+const GOOGLE_CLIENT_ID = GOOGLE_IOS_CLIENT_ID;
 
 interface GoogleSignInButtonProps {
   onSuccess: () => void;
@@ -31,24 +38,85 @@ export function GoogleSignInButton({ onSuccess }: GoogleSignInButtonProps) {
     tokenEndpoint: 'https://oauth2.googleapis.com/token',
   };
 
+  // Use reversed client ID as redirect URI (iOS OAuth standard)
+  const redirectUri = 'com.googleusercontent.apps.865313393887-8d4jvuj4i85p53g5149ln400adfupe21:/';
+
+  console.log('=== GOOGLE OAUTH DEBUG ===');
+  console.log('Client ID:', GOOGLE_CLIENT_ID);
+  console.log('Redirect URI:', redirectUri);
+
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: GOOGLE_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
-      redirectUri: AuthSession.makeRedirectUri({
-        scheme: 'm3ajem',
-        path: 'auth/google',
-      }),
+      redirectUri,
+      // Use authorization code flow - we'll exchange the code for tokens
     },
     discovery
   );
 
   React.useEffect(() => {
     if (response?.type === 'success') {
-      const { authentication } = response;
-      handleGoogleSignIn(authentication?.idToken);
+      const { params } = response;
+      console.log('OAuth Success! Params:', JSON.stringify(params, null, 2));
+
+      // Exchange authorization code for tokens
+      if (params.code) {
+        console.log('Got authorization code, exchanging for tokens...');
+        exchangeCodeForTokens(params.code);
+      } else {
+        console.error('No authorization code in response');
+        Alert.alert(t('common.error'), 'No authorization code received from Google');
+      }
+    } else if (response?.type === 'error') {
+      console.error('OAuth Error:', response.error);
+      console.error('OAuth Error Params:', response.params);
+      Alert.alert(
+        t('common.error'),
+        `OAuth Error: ${response.error?.code || 'Unknown'}\n${response.error?.description || ''}`
+      );
+    } else if (response?.type === 'cancel') {
+      console.log('User canceled OAuth flow');
+    } else if (response?.type === 'dismiss') {
+      console.log('OAuth browser was dismissed');
     }
   }, [response]);
+
+  const exchangeCodeForTokens = async (code: string) => {
+    try {
+      setIsLoading(true);
+      console.log('Exchanging code for tokens...');
+
+      const tokenResponse = await AuthSession.exchangeCodeAsync(
+        {
+          clientId: GOOGLE_CLIENT_ID,
+          code,
+          redirectUri,
+          extraParams: {
+            code_verifier: request?.codeVerifier || '',
+          },
+        },
+        discovery
+      );
+
+      console.log('Token exchange successful!');
+      console.log('ID Token:', tokenResponse.idToken?.substring(0, 20) + '...');
+
+      if (tokenResponse.idToken) {
+        handleGoogleSignIn(tokenResponse.idToken);
+      } else {
+        Alert.alert(t('common.error'), 'Failed to get ID token from token exchange');
+      }
+    } catch (error) {
+      console.error('Token exchange error:', error);
+      Alert.alert(
+        t('common.error'),
+        `Failed to exchange code for tokens: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async (idToken: string | undefined) => {
     if (!idToken) {
@@ -58,7 +126,10 @@ export function GoogleSignInButton({ onSuccess }: GoogleSignInButtonProps) {
 
     setIsLoading(true);
     try {
-      await GatewayAuthService.authenticateWithGoogle(idToken);
+      console.log('Sending ID token to backend...');
+      const response = await GatewayAuthService.authenticateWithGoogle(idToken);
+      console.log('Backend authentication successful!', response);
+
       Alert.alert(
         t('smart.auth.success'),
         t('smart.auth.signedInSuccessfully'),
@@ -66,10 +137,14 @@ export function GoogleSignInButton({ onSuccess }: GoogleSignInButtonProps) {
       );
     } catch (error) {
       console.error('Google sign-in error:', error);
-      Alert.alert(
-        t('common.error'),
-        error instanceof Error ? error.message : t('smart.auth.signInFailed')
-      );
+      console.error('Error details:', JSON.stringify(error, null, 2));
+
+      let errorMessage = t('smart.auth.signInFailed');
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setIsLoading(false);
     }

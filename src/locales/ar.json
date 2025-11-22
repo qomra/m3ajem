@@ -256,7 +256,7 @@
       "data": "البيانات"
     },
     "apiConfig": {
-      "title": "إعدادات API",
+      "title": "مزود الذكاء الاصطناعي",
       "provider": "مزود الخدمة",
       "apiKey": "مفتاح API",
       "enterApiKey": "أدخل مفتاح API",
@@ -267,7 +267,7 @@
       "cancel": "إلغاء",
       "error": "خطأ",
       "success": "نجح",
-      "pleaseEnterApiKey": "الرجاء إدخال مفتاح API",
+      "pleaseEnterApiKey": "الرجاء إدخل مفتاح API",
       "invalidKey": "مفتاح غير صحيح",
       "checkApiKeyFormat": "تحقق من صيغة مفتاح API",
       "pleaseConfigureProvider": "الرجاء تكوين مزود خدمة واحد على الأقل",
@@ -276,7 +276,8 @@
         "openai": "GPT-5",
         "google": "Gemini 2.5 Flash",
         "anthropic": "Claude Sonnet 4.5",
-        "groq": "Llama 4 Maverick"
+        "groq": "Llama 4 Maverick",
+        "gateway": "خدمة معاجم المجانية"
       }
     },
     "serpapi": {

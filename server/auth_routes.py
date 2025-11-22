@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import RedirectResponse
+from typing import Optional
 from sqlalchemy.orm import Session
 import httpx
 import os
@@ -254,7 +255,10 @@ async def apple_mobile_auth(
 
 
 @router.get("/me")
-async def get_current_user_info(authorization: str = None, db: Session = Depends(get_db)):
+async def get_current_user_info(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
     """Get current user information from JWT token"""
     from auth import get_current_user
 

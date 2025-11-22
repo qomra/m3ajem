@@ -83,6 +83,9 @@ export default function SmartScreen() {
 
   const loadAPIConfig = async () => {
     try {
+      // Get available providers
+      const providers: APIProvider[] = [];
+
       // Check for API keys
       const allConfigs = await APIKeyStorage.getAllConfigs();
 
@@ -90,34 +93,28 @@ export default function SmartScreen() {
         setHasAPIKey(true);
         setSelectedProvider(allConfigs.currentProvider);
 
-        // Get available providers
-        const providers: APIProvider[] = [];
         if (allConfigs.openai) providers.push('openai');
         if (allConfigs.anthropic) providers.push('anthropic');
         if (allConfigs.groq) providers.push('groq');
         if (allConfigs.google) providers.push('google');
-
-        setAvailableProviders(providers);
       } else {
         setHasAPIKey(false);
       }
 
-      // Check for gateway authentication
+      // Check for gateway authentication (local check only, no network request)
       const isGatewayAuth = await GatewayAuthService.isAuthenticated();
       setHasGatewayAuth(isGatewayAuth);
 
-      // Get rate limit info if authenticated with gateway
       if (isGatewayAuth) {
-        const user = await GatewayAuthService.getCurrentUser();
-        if (user) {
-          setRateLimitInfo({
-            current: user.daily_requests,
-            limit: user.daily_limit,
-          });
-        }
+        providers.push('gateway');
+        // Don't fetch user info here - it requires network
+        // Rate limit will be shown when user actually sends a message
+        // or they can check it in settings
       } else {
         setRateLimitInfo(null);
       }
+
+      setAvailableProviders(providers);
 
     } catch (error) {
       console.error('Error loading API config:', error);

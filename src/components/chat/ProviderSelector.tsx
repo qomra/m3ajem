@@ -1,9 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useTranslation } from '@hooks';
 import type { APIProvider } from '@services/storage/apiKeyStorage';
 
 const PROVIDERS = [
+  {
+    id: 'gateway' as APIProvider,
+    name: 'معاجم',
+    icon: 'cloud-outline' as keyof typeof Ionicons.glyphMap,
+    color: '#8B5CF6',
+  },
   {
     id: 'groq' as APIProvider,
     name: 'Groq',
@@ -80,7 +87,11 @@ export function ProviderSelector({
                 { backgroundColor: provider.color + '20' },
               ]}
             >
-              <Image source={provider.logo} style={styles.logo} resizeMode="contain" />
+              {'icon' in provider ? (
+                <Ionicons name={provider.icon} size={24} color={provider.color} />
+              ) : (
+                <Image source={provider.logo} style={styles.logo} resizeMode="contain" />
+              )}
             </View>
 
             <Text style={[styles.providerName, { color: theme.colors.text }]}>

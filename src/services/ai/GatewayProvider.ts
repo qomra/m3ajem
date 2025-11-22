@@ -15,7 +15,9 @@ export class GatewayProvider implements AIProvider {
     systemPrompt?: string,
     tools?: any[]
   ): Promise<AIResponse> {
+    console.log('GatewayProvider: Getting token...');
     const token = await GatewayAuthService.getToken();
+    console.log('GatewayProvider: Token retrieved:', token ? `${token.substring(0, 20)}...` : 'NULL');
 
     if (!token) {
       throw new Error('Not authenticated. Please sign in with Google or Apple.');
@@ -86,5 +88,14 @@ export class GatewayProvider implements AIProvider {
     // Tool execution happens on the server
     // This shouldn't be called for gateway provider
     throw new Error('Tool execution should happen on the gateway server');
+  }
+
+  async sendMessageWithTools(
+    messages: Array<{ role: string; content: string }>,
+    tools: any[]
+  ): Promise<AIResponse> {
+    // Gateway provider handles tools on the server side
+    // Just call generateResponse with tools
+    return this.generateResponse(messages, undefined, tools);
   }
 }

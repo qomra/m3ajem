@@ -54,10 +54,16 @@ export function AppleSignInButton({ onSuccess }: AppleSignInButtonProps) {
         return;
       }
       console.error('Apple sign-in error:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || t('smart.auth.signInFailed')
-      );
+      console.error('Error details:', JSON.stringify(error, null, 2));
+
+      let errorMessage = t('smart.auth.signInFailed');
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code) {
+        errorMessage = `Error code: ${error.code}`;
+      }
+
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setIsLoading(false);
     }

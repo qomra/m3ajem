@@ -313,8 +313,8 @@ export default function SettingsScreen() {
         <SettingsSection title={t('settings.sections.ai')}>
           <SettingsItem
             icon="key-outline"
-            title={t('settings.apiKey')}
-            subtitle={hasAPIKey ? t('settings.apiKeyConfigured') : t('settings.enterApiKey')}
+            title={t('settings.apiConfig.title')}
+            subtitle={hasAPIKey || gatewayUser ? t('settings.apiKeyConfigured') : t('settings.enterApiKey')}
             onPress={() => setShowAPIModal(true)}
           />
           <SettingsItem
