@@ -22,7 +22,7 @@ export default function WordDetailScreen() {
     viewMode?: string;
   }>();
 
-  const { processedWords, searchRootInDictionary, loadAllWords } = useDictionaryStore();
+  const { processedWords, searchRootInDictionary, loadAllWords, sortBy, randomSeed } = useDictionaryStore();
 
   // Determine highlight mode: if word === root, highlight all words; otherwise single word
   const highlightMode: 'word' | 'root' = word === root ? 'root' : 'word';
@@ -34,8 +34,51 @@ export default function WordDetailScreen() {
     }
   }, [processedWords.length, loadAllWords]);
 
-  // Use processedWords for navigation
-  const activeWordList = processedWords;
+  // Apply sorting to processedWords for navigation (same logic as index.tsx)
+  const activeWordList = useMemo(() => {
+    if (processedWords.length === 0) return [];
+
+    // Group by root first to get word counts
+    const groupedByRoot = processedWords.reduce((acc, word) => {
+      const key = `${word.root}-${word.dictionaryName}`;
+      if (!acc[key]) {
+        acc[key] = {
+          root: word.root,
+          dictionaryName: word.dictionaryName,
+          words: [],
+        };
+      }
+      acc[key].words.push(word);
+      return acc;
+    }, {} as Record<string, { root: string; dictionaryName: string; words: typeof processedWords }>);
+
+    const grouped = Object.values(groupedByRoot);
+
+    // Sort roots based on sortBy
+    const sorted = [...grouped];
+
+    if (sortBy === 'alphabetical') {
+      sorted.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
+    } else if (sortBy === 'longest' || sortBy === 'shortest') {
+      sorted.sort((a, b) => {
+        const diff = b.words.length - a.words.length;
+        return sortBy === 'longest' ? diff : -diff;
+      });
+    } else if (sortBy === 'random') {
+      const seededRandom = (seed: number) => {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      };
+
+      for (let i = sorted.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom(randomSeed + i) * (i + 1));
+        [sorted[i], sorted[j]] = [sorted[j], sorted[i]];
+      }
+    }
+
+    // Flatten back to word list
+    return sorted.flatMap(group => group.words);
+  }, [processedWords, sortBy, randomSeed]);
 
   const [highlightEnabled, setHighlightEnabled] = useState(true);
   const [showRelatedWords, setShowRelatedWords] = useState(false);

@@ -212,7 +212,7 @@ export default function SettingsScreen() {
 
   const handleDownloadAllData = async () => {
     if (!userDb) {
-      Alert.alert(t('common.error'), 'Database not initialized');
+      Alert.alert(t('common.error'), t('settings.databaseNotInitialized'));
       return;
     }
 
@@ -223,7 +223,7 @@ export default function SettingsScreen() {
       // Check if database file exists
       const dbInfo = await FileSystem.getInfoAsync(dbPath);
       if (!dbInfo.exists) {
-        Alert.alert(t('common.error'), 'Database file not found');
+        Alert.alert(t('common.error'), t('settings.databaseFileNotFound'));
         return;
       }
 
@@ -276,7 +276,7 @@ export default function SettingsScreen() {
 
   const handleDownloadChatHistory = async () => {
     if (!chatService) {
-      Alert.alert(t('common.error'), 'Chat service not initialized');
+      Alert.alert(t('common.error'), t('settings.chatServiceNotInitialized'));
       return;
     }
 
@@ -285,7 +285,7 @@ export default function SettingsScreen() {
       const conversations = await chatService.conversationManager.getAllConversations();
 
       if (conversations.length === 0) {
-        Alert.alert(t('common.info'), 'No chat history to export');
+        Alert.alert(t('common.info'), t('settings.noChatHistoryToExport'));
         return;
       }
 

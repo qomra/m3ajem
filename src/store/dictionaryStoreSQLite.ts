@@ -71,6 +71,10 @@ interface DictionaryState {
   processedRoots: ProcessedIndexRoot[];
   processedWords: ProcessedIndexWord[];
 
+  // Sorting state for indexed tab
+  sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random';
+  randomSeed: number;
+
   // Actions
   initializeDatabase: () => Promise<void>;
   loadDictionaries: () => Promise<void>;
@@ -81,6 +85,7 @@ interface DictionaryState {
   searchRoot: (root: string) => Promise<{ dictionary: string; definition: string }[]>;
   searchRootInDictionary: (dictionaryName: string, root: string) => Promise<string | null>;
   getWordsForRoot: (rootId: number) => Promise<string[]>;
+  setSortBy: (sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random') => void;
 }
 
 const DB_NAME = 'dictionary.db';
@@ -97,6 +102,8 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
   metadata: null,
   processedRoots: [],
   processedWords: [],
+  sortBy: 'alphabetical',
+  randomSeed: 0,
 
   // Initialize database
   initializeDatabase: async () => {
@@ -493,6 +500,15 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     } catch (error) {
       console.error('Error checking word exists:', error);
       return false;
+    }
+  },
+
+  setSortBy: (sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random') => {
+    // If switching to random, increment seed for new shuffle
+    if (sortBy === 'random') {
+      set({ sortBy, randomSeed: get().randomSeed + 1 });
+    } else {
+      set({ sortBy });
     }
   },
 }));

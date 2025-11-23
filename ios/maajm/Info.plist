@@ -4,6 +4,8 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -33,7 +35,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>m3ajem</string>
-				<string>com.m3ajem.app</string>
+				<string>com.googleusercontent.apps.865313393887-8d4jvuj4i85p53g5149ln400adfupe21</string>
 			</array>
 		</dict>
 	</array>

@@ -15,10 +15,8 @@ function IndexedContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isReverseSearch, setIsReverseSearch] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
-  const [sortBy, setSortBy] = useState<'alphabetical' | 'longest' | 'shortest' | 'random'>('alphabetical');
-  const [randomSeed, setRandomSeed] = useState(0);
 
-  const { processedRoots, isLoadingRoots, loadAllRoots, searchRootInDictionary } = useDictionaryStore();
+  const { processedRoots, isLoadingRoots, loadAllRoots, searchRootInDictionary, sortBy, randomSeed, setSortBy } = useDictionaryStore();
 
   // Load roots on mount
   useEffect(() => {
@@ -26,14 +24,6 @@ function IndexedContent() {
       loadAllRoots();
     }
   }, []);
-
-  // Handle sort change - increment randomSeed when switching to random
-  const handleSortChange = (newSort: 'alphabetical' | 'longest' | 'shortest' | 'random') => {
-    if (newSort === 'random') {
-      setRandomSeed(prev => prev + 1);
-    }
-    setSortBy(newSort);
-  };
 
   // Helper: Remove diacritics for search matching
   const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');
@@ -136,7 +126,7 @@ function IndexedContent() {
           isReverseSearch={isReverseSearch}
           onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
           sortBy={sortBy}
-          onSortChange={handleSortChange}
+          onSortChange={setSortBy}
         />
 
         <View style={styles.centerContainer}>
@@ -159,7 +149,7 @@ function IndexedContent() {
         isReverseSearch={isReverseSearch}
         onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
         sortBy={sortBy}
-        onSortChange={handleSortChange}
+        onSortChange={setSortBy}
       />
 
       {/* Word List - Always Grouped */}
