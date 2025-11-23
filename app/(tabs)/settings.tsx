@@ -20,7 +20,7 @@ import { GatewayAuthService } from '@services/auth/GatewayAuthService';
 import type { GatewayUser } from '@services/auth/GatewayAuthService';
 import { useAudioStore } from '@store/audioStore';
 import { useChatStore } from '@store/chatStore';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 // Settings Section Component
