@@ -15,8 +15,10 @@ function IndexedContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isReverseSearch, setIsReverseSearch] = useState(false);
   const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<'alphabetical' | 'longest' | 'shortest' | 'random'>('alphabetical');
+  const [randomSeed, setRandomSeed] = useState(0);
 
-  const { processedRoots, isLoadingRoots, loadAllRoots } = useDictionaryStore();
+  const { processedRoots, isLoadingRoots, loadAllRoots, searchRootInDictionary } = useDictionaryStore();
 
   // Load roots on mount
   useEffect(() => {
@@ -24,6 +26,14 @@ function IndexedContent() {
       loadAllRoots();
     }
   }, []);
+
+  // Handle sort change - increment randomSeed when switching to random
+  const handleSortChange = (newSort: 'alphabetical' | 'longest' | 'shortest' | 'random') => {
+    if (newSort === 'random') {
+      setRandomSeed(prev => prev + 1);
+    }
+    setSortBy(newSort);
+  };
 
   // Helper: Remove diacritics for search matching
   const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');
@@ -50,6 +60,36 @@ function IndexedContent() {
       })
       .filter(group => group.wordCount > 0);
   }, [processedRoots, searchQuery, isReverseSearch]);
+
+  // Apply sort
+  const sortedGroupedWords = useMemo(() => {
+    const sorted = [...filteredGroupedWords];
+
+    if (sortBy === 'alphabetical') {
+      sorted.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
+    } else if (sortBy === 'longest' || sortBy === 'shortest') {
+      // Sort by content length
+      sorted.sort((a, b) => {
+        const aContent = searchRootInDictionary(a.dictionaryName, a.root) || '';
+        const bContent = searchRootInDictionary(b.dictionaryName, b.root) || '';
+        const diff = bContent.length - aContent.length;
+        return sortBy === 'longest' ? diff : -diff;
+      });
+    } else if (sortBy === 'random') {
+      // Shuffle using seeded random
+      const seededRandom = (seed: number) => {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      };
+
+      for (let i = sorted.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom(randomSeed + i) * (i + 1));
+        [sorted[i], sorted[j]] = [sorted[j], sorted[i]];
+      }
+    }
+
+    return sorted;
+  }, [filteredGroupedWords, sortBy, randomSeed, searchRootInDictionary]);
 
   const handleWordPress = (word: string, root: string, dictionaryName: string) => {
     router.push({
@@ -97,6 +137,8 @@ function IndexedContent() {
           onClearSearch={() => setSearchQuery('')}
           isReverseSearch={isReverseSearch}
           onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
+          sortBy={sortBy}
+          onSortChange={handleSortChange}
         />
 
         <View style={styles.centerContainer}>
@@ -118,11 +160,13 @@ function IndexedContent() {
         onClearSearch={() => setSearchQuery('')}
         isReverseSearch={isReverseSearch}
         onToggleReverseSearch={() => setIsReverseSearch(!isReverseSearch)}
+        sortBy={sortBy}
+        onSortChange={handleSortChange}
       />
 
       {/* Word List - Always Grouped */}
       <FlatList
-        data={filteredGroupedWords}
+        data={sortedGroupedWords}
         keyExtractor={item => `${item.dictionaryName}-${item.root}`}
         keyboardShouldPersistTaps='handled'
         renderItem={({ item }) => (
