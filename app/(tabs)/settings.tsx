@@ -18,6 +18,10 @@ import { APIKeyStorage } from '@services/storage/apiKeyStorage';
 import { SerpAPIStorage } from '@services/storage/serpApiStorage';
 import { GatewayAuthService } from '@services/auth/GatewayAuthService';
 import type { GatewayUser } from '@services/auth/GatewayAuthService';
+import { useAudioStore } from '@store/audioStore';
+import { useChatStore } from '@store/chatStore';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 // Settings Section Component
 const SettingsSection = ({ title, children }: { title: string; children: React.ReactNode }) => {
@@ -94,6 +98,10 @@ export default function SettingsScreen() {
   const [hasSerpAPI, setHasSerpAPI] = useState(false);
   const [gatewayUser, setGatewayUser] = useState<GatewayUser | null>(null);
 
+  // Get store methods
+  const { deleteAll: deleteAllAudio, downloadAll: downloadAllAudio, getDownloadedCount, getTotalSize } = useAudioStore();
+  const { deleteAllConversations, chatService, userDb } = useChatStore();
+
   useEffect(() => {
     loadAPIStatus();
     loadSerpAPIStatus();
@@ -124,6 +132,13 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAllAudio = () => {
+    const downloadedCount = getDownloadedCount();
+
+    if (downloadedCount === 0) {
+      Alert.alert(t('common.info'), t('audio.noFilesToDelete'));
+      return;
+    }
+
     Alert.alert(
       t('audio.deleteAll'),
       t('audio.confirmDeleteAll'),
@@ -133,8 +148,13 @@ export default function SettingsScreen() {
           text: t('common.apply'),
           style: 'destructive',
           onPress: async () => {
-            // TODO: Implement audio deletion
-            Alert.alert(t('common.info'), t('audio.noFilesToDelete'));
+            try {
+              await deleteAllAudio();
+              Alert.alert(t('common.success'), `${t('audio.deleteAll')} (${downloadedCount} ${t('audio.filesDownloaded')})`);
+            } catch (error) {
+              console.error('Error deleting audio:', error);
+              Alert.alert(t('common.error'), String(error));
+            }
           },
         },
       ]
@@ -151,8 +171,13 @@ export default function SettingsScreen() {
           text: t('common.apply'),
           style: 'destructive',
           onPress: async () => {
-            // TODO: Implement chat deletion
-            Alert.alert(t('common.info'), 'سيتم تنفيذ هذه الميزة لاحقاً');
+            try {
+              await deleteAllConversations();
+              Alert.alert(t('common.success'), t('settings.deleteChat'));
+            } catch (error) {
+              console.error('Error deleting chat:', error);
+              Alert.alert(t('common.error'), String(error));
+            }
           },
         },
       ]
@@ -169,8 +194,16 @@ export default function SettingsScreen() {
           text: t('common.apply'),
           style: 'destructive',
           onPress: async () => {
-            // TODO: Implement all data deletion (audio + chat)
-            Alert.alert(t('common.info'), 'سيتم تنفيذ هذه الميزة لاحقاً');
+            try {
+              await Promise.all([
+                deleteAllAudio(),
+                deleteAllConversations()
+              ]);
+              Alert.alert(t('common.success'), t('settings.deleteAllData'));
+            } catch (error) {
+              console.error('Error deleting all data:', error);
+              Alert.alert(t('common.error'), String(error));
+            }
           },
         },
       ]
@@ -178,18 +211,120 @@ export default function SettingsScreen() {
   };
 
   const handleDownloadAllData = async () => {
-    Alert.alert(t('common.info'), 'سيتم تنفيذ هذه الميزة لاحقاً');
-    // TODO: Implement database export to ZIP
+    if (!userDb) {
+      Alert.alert(t('common.error'), 'Database not initialized');
+      return;
+    }
+
+    try {
+      // Get the database file path
+      const dbPath = `${FileSystem.documentDirectory}SQLite/user.db`;
+
+      // Check if database file exists
+      const dbInfo = await FileSystem.getInfoAsync(dbPath);
+      if (!dbInfo.exists) {
+        Alert.alert(t('common.error'), 'Database file not found');
+        return;
+      }
+
+      // Copy database to a shareable location
+      const fileName = `user-data-${Date.now()}.db`;
+      const exportPath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.copyAsync({
+        from: dbPath,
+        to: exportPath,
+      });
+
+      // Share the database file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(exportPath, {
+          dialogTitle: t('settings.downloadAllData'),
+          mimeType: 'application/octet-stream',
+        });
+      } else {
+        Alert.alert(t('common.success'), `${t('settings.downloadAllData')}: ${exportPath}`);
+      }
+    } catch (error) {
+      console.error('Error exporting database:', error);
+      Alert.alert(t('common.error'), String(error));
+    }
   };
 
   const handleDownloadAllAudio = async () => {
-    Alert.alert(t('common.info'), 'سيتم تنفيذ هذه الميزة لاحقاً');
-    // TODO: Implement bulk audio download
+    Alert.alert(
+      t('audio.downloadAll'),
+      t('audio.confirmDownloadAll'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.apply'),
+          onPress: async () => {
+            try {
+              // Show loading message
+              Alert.alert(t('common.info'), t('audio.downloading'));
+              await downloadAllAudio();
+              Alert.alert(t('common.success'), t('audio.downloadAll'));
+            } catch (error) {
+              console.error('Error downloading all audio:', error);
+              Alert.alert(t('common.error'), String(error));
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDownloadChatHistory = async () => {
-    Alert.alert(t('common.info'), 'سيتم تنفيذ هذه الميزة لاحقاً');
-    // TODO: Implement chat history export
+    if (!chatService) {
+      Alert.alert(t('common.error'), 'Chat service not initialized');
+      return;
+    }
+
+    try {
+      // Get all conversations with their messages
+      const conversations = await chatService.conversationManager.getAllConversations();
+
+      if (conversations.length === 0) {
+        Alert.alert(t('common.info'), 'No chat history to export');
+        return;
+      }
+
+      // Get full conversation details including messages
+      const fullConversations = await Promise.all(
+        conversations.map(async (conv) => {
+          const messages = await chatService.getConversationMessages(conv.id);
+          return {
+            ...conv,
+            messages,
+          };
+        })
+      );
+
+      // Create JSON export
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        conversationsCount: fullConversations.length,
+        conversations: fullConversations,
+      };
+
+      // Write to file
+      const fileName = `chat-history-${Date.now()}.json`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, JSON.stringify(exportData, null, 2));
+
+      // Share the file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          dialogTitle: t('settings.exportChat'),
+          mimeType: 'application/json',
+        });
+      } else {
+        Alert.alert(t('common.success'), `${t('settings.exportChat')}: ${filePath}`);
+      }
+    } catch (error) {
+      console.error('Error exporting chat history:', error);
+      Alert.alert(t('common.error'), String(error));
+    }
   };
 
   const handleOpenAudioFolder = async () => {
