@@ -68,11 +68,9 @@ function IndexedContent() {
     if (sortBy === 'alphabetical') {
       sorted.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
     } else if (sortBy === 'longest' || sortBy === 'shortest') {
-      // Sort by content length
+      // Sort by word count (number of words under each root) - instant and makes sense for indexed view
       sorted.sort((a, b) => {
-        const aContent = searchRootInDictionary(a.dictionaryName, a.root) || '';
-        const bContent = searchRootInDictionary(b.dictionaryName, b.root) || '';
-        const diff = bContent.length - aContent.length;
+        const diff = b.wordCount - a.wordCount;
         return sortBy === 'longest' ? diff : -diff;
       });
     } else if (sortBy === 'random') {
