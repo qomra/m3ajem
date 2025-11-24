@@ -8,23 +8,23 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		34F542C4D6F955BA06075A5F /* libPods-maajm.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CD67F15EB7AB8B174831B3D /* libPods-maajm.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		8C9E0E1C9209A848091DB2AB /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0EB64E048BC2122BAA803305 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		CB6ADBB92AD463F4F0592676 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878754C96BDC9FE4326533A2 /* ExpoModulesProvider.swift */; };
+		BE3D91111811B58DCB9AD40E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 785F357A2EDF4079BDE83360 /* PrivacyInfo.xcprivacy */; };
+		E90A3A0CCECF11E91C51F2F3 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33775350A572B10E60C47712 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		F5FA10D9909A5268B03AB0FB /* libPods-maajm.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 38401CF524079D834347DB25 /* libPods-maajm.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0EB64E048BC2122BAA803305 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = maajm/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* maajm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = maajm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = maajm/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = maajm/Info.plist; sourceTree = "<group>"; };
-		38401CF524079D834347DB25 /* libPods-maajm.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-maajm.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		55227300EFCC22A1EF4EC438 /* Pods-maajm.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-maajm.release.xcconfig"; path = "Target Support Files/Pods-maajm/Pods-maajm.release.xcconfig"; sourceTree = "<group>"; };
-		74F8157CC9ABA7EA123FE2D6 /* Pods-maajm.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-maajm.debug.xcconfig"; path = "Target Support Files/Pods-maajm/Pods-maajm.debug.xcconfig"; sourceTree = "<group>"; };
-		878754C96BDC9FE4326533A2 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-maajm/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		3362B6E530ECE535D391D478 /* Pods-maajm.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-maajm.release.xcconfig"; path = "Target Support Files/Pods-maajm/Pods-maajm.release.xcconfig"; sourceTree = "<group>"; };
+		33775350A572B10E60C47712 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-maajm/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		6CD67F15EB7AB8B174831B3D /* libPods-maajm.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-maajm.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		785F357A2EDF4079BDE83360 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = maajm/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		849C13BEF8A32D375508A0AC /* Pods-maajm.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-maajm.debug.xcconfig"; path = "Target Support Files/Pods-maajm/Pods-maajm.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = maajm/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F5FA10D9909A5268B03AB0FB /* libPods-maajm.a in Frameworks */,
+				34F542C4D6F955BA06075A5F /* libPods-maajm.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				0EB64E048BC2122BAA803305 /* PrivacyInfo.xcprivacy */,
+				785F357A2EDF4079BDE83360 /* PrivacyInfo.xcprivacy */,
 			);
 			name = maajm;
 			sourceTree = "<group>";
@@ -62,26 +62,17 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				38401CF524079D834347DB25 /* libPods-maajm.a */,
+				6CD67F15EB7AB8B174831B3D /* libPods-maajm.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		6ADF13F024AEAB6613243E15 /* ExpoModulesProviders */ = {
+		7C6B1650E9CF54BA04FC1A5A /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				CB1DE8E10384745CD5B87E3E /* maajm */,
+				B2FD2D7FEBA0EA35332AFF60 /* maajm */,
 			);
 			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		826C1427BC23CBB44C5B24EA /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				74F8157CC9ABA7EA123FE2D6 /* Pods-maajm.debug.xcconfig */,
-				55227300EFCC22A1EF4EC438 /* Pods-maajm.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -98,8 +89,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				826C1427BC23CBB44C5B24EA /* Pods */,
-				6ADF13F024AEAB6613243E15 /* ExpoModulesProviders */,
+				93C676D847DE716D69075E98 /* Pods */,
+				7C6B1650E9CF54BA04FC1A5A /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -114,6 +105,23 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		93C676D847DE716D69075E98 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				849C13BEF8A32D375508A0AC /* Pods-maajm.debug.xcconfig */,
+				3362B6E530ECE535D391D478 /* Pods-maajm.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		B2FD2D7FEBA0EA35332AFF60 /* maajm */ = {
+			isa = PBXGroup;
+			children = (
+				33775350A572B10E60C47712 /* ExpoModulesProvider.swift */,
+			);
+			name = maajm;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -121,14 +129,6 @@
 			);
 			name = Supporting;
 			path = maajm/Supporting;
-			sourceTree = "<group>";
-		};
-		CB1DE8E10384745CD5B87E3E /* maajm */ = {
-			isa = PBXGroup;
-			children = (
-				878754C96BDC9FE4326533A2 /* ExpoModulesProvider.swift */,
-			);
-			name = maajm;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -139,13 +139,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "maajm" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				B459771528436236CA84315A /* [Expo] Configure project */,
+				FBB4AB31BF0E3C5690068CC0 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				AD32A7C1276C57203FE76C0D /* [CP] Embed Pods Frameworks */,
+				3528C29F14C7B901EE3E4DA3 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -195,7 +195,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				8C9E0E1C9209A848091DB2AB /* PrivacyInfo.xcprivacy in Resources */,
+				BE3D91111811B58DCB9AD40E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,6 +241,28 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		3528C29F14C7B901EE3E4DA3 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-maajm/Pods-maajm-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-maajm/Pods-maajm-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -283,29 +305,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-maajm/Pods-maajm-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		AD32A7C1276C57203FE76C0D /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-maajm/Pods-maajm-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-maajm/Pods-maajm-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		B459771528436236CA84315A /* [Expo] Configure project */ = {
+		FBB4AB31BF0E3C5690068CC0 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -337,7 +337,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				CB6ADBB92AD463F4F0592676 /* ExpoModulesProvider.swift in Sources */,
+				E90A3A0CCECF11E91C51F2F3 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -346,7 +346,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 74F8157CC9ABA7EA123FE2D6 /* Pods-maajm.debug.xcconfig */;
+			baseConfigurationReference = 849C13BEF8A32D375508A0AC /* Pods-maajm.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -383,7 +383,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 55227300EFCC22A1EF4EC438 /* Pods-maajm.release.xcconfig */;
+			baseConfigurationReference = 3362B6E530ECE535D391D478 /* Pods-maajm.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

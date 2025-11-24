@@ -258,29 +258,18 @@ def merge_lisan_data(maajim: List[Dict], new_resources: Dict) -> List[Dict]:
         print(f"ERROR: {new_dict_name} dictionary not found!")
         return maajim
 
-    # Merge new resources
+    # REPLACE entire لسان العرب data with new_resources
     original_count = len(lisan_dict['data'])
-    new_count = 0
-    updated_count = 0
 
-    for root, definition in new_roots_data.items():
-        if not definition:
-            continue
+    # Filter out empty definitions
+    filtered_data = {root: definition for root, definition in new_roots_data.items() if definition}
 
-        if root in lisan_dict['data']:
-            # Update existing root
-            lisan_dict['data'][root] = definition
-            updated_count += 1
-        else:
-            # Add new root
-            lisan_dict['data'][root] = definition
-            new_count += 1
-
+    # Replace entire data
+    lisan_dict['data'] = filtered_data
     maajim[lisan_index] = lisan_dict
 
     print(f"  ✓ Original roots: {original_count}")
-    print(f"  ✓ New roots added: {new_count}")
-    print(f"  ✓ Existing roots updated: {updated_count}")
+    print(f"  ✓ Replaced with: {len(filtered_data)} roots")
     print(f"  ✓ Total roots now: {len(lisan_dict['data'])}")
 
     return maajim

@@ -89,6 +89,8 @@ PODS:
     - Yoga
   - ExpoSecureStore (15.0.7):
     - ExpoModulesCore
+  - ExpoSharing (14.0.7):
+    - ExpoModulesCore
   - ExpoSQLite (16.0.9):
     - ExpoModulesCore
   - ExpoWebBrowser (15.0.9):
@@ -1927,6 +1929,7 @@ DEPENDENCIES:
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
@@ -2046,6 +2049,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   ExpoSQLite:
     :path: "../node_modules/expo-sqlite/ios"
   ExpoWebBrowser:
@@ -2215,6 +2220,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 77455aa013e9b6a3601de03ecfab09858ee1b031
   ExpoModulesCore: 87979cd52381b29e81e9cb7fa0fd5c4ae494d83e
   ExpoSecureStore: 9c6571fe3fcb045a671c4011c451546eaaab98fd
+  ExpoSharing: 032c01bb034319e2374badf082ae935be866d2e9
   ExpoSQLite: 9453c0eb84c48058112f63811e24ef1a3e2b82c4
   ExpoWebBrowser: b973e1351fdcf5fec0c400997b1851f5a8219ec3
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
