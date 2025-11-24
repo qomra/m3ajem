@@ -37,13 +37,11 @@ export function DefinitionCard({
   const lastScrolledWordRef = useRef<string>('');
   const lastScrolledOccurrenceRef = useRef<number>(-1);
 
-  // Pre-process definition: add newlines after periods BEFORE highlighting
+  // Use definition as-is - preserve all existing newlines and formatting
   const processedDefinition = useMemo(() => {
     if (!definition) return '';
-    return definition.split('.').map((sentence, idx, arr) => {
-      const trimmed = sentence.trim();
-      return trimmed ? (idx < arr.length - 1 ? trimmed + '.\n\n' : trimmed) : '';
-    }).join('');
+    // Return definition without modification to preserve existing newlines
+    return definition;
   }, [definition]);
 
   // Reset layout ready when definition changes (different root)
