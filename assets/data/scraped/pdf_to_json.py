@@ -43,6 +43,28 @@ Extract data as a JSON array with this structure:
 For continued entries, mark them with "is_continuation": true and include the full merged content.
 
 Return only valid JSON.
+""",
+    "flat_dictionary_with_context": """
+You are given a page from a dictionary or lexicon with entries that flow sequentially from top to bottom.
+
+IMPORTANT: Dictionary entries may span across multiple pages. When an entry is too long to fit on one page, it continues on the next page.
+
+CONTEXT FROM PREVIOUS PAGES:
+{previous_context}
+
+CURRENT PAGE INSTRUCTIONS:
+1. First, check if the FIRST entry on the CURRENT page appears to be a continuation of the LAST entry from the PREVIOUS pages shown above
+2. If an entry is a continuation, MERGE it with the previous entry by combining the text
+3. If an entry is a continuation, DO NOT create a new entry for it
+4. Only create new entries for content that is NOT a continuation
+5. Extract all other complete entries on this page
+
+Extract data as a JSON array with this structure:
+[{{"english":"...", "arabic":"...", "arabic_main_word":"...", "is_continuation": false}}]
+
+For continued entries, mark them with "is_continuation": true and include the full merged content.
+
+Return only valid JSON.
 """
 }
 
@@ -240,7 +262,7 @@ if __name__ == "__main__":
         description="Extract structured data from PDF files using GPT-5.1 with optional page context"
     )
     parser.add_argument("--prompt", type=str, required=True,
-                        help="Prompt name to use (e.g., 'english_arabic_dictionary', 'english_arabic_dictionary_with_context')")
+                        help="Prompt name to use (e.g., 'english_arabic_dictionary', 'english_arabic_dictionary_with_context', 'flat_dictionary_with_context')")
     parser.add_argument("--pdf_file", type=str, required=True,
                         help="Path to PDF file to process")
     parser.add_argument("--checkpoint_file", type=str, required=True,
@@ -284,8 +306,11 @@ if __name__ == "__main__":
 # Basic extraction without context:
 # python pdf_to_json.py --prompt english_arabic_dictionary --pdf_file pdf/mojam_nabat.pdf --checkpoint_file json/mojam_nabat/checkpoint.json --output_file json/mojam_nabat/output.json
 #
-# Extraction with context from previous 2 pages (for handling continuations):
+# Right-to-left dictionary with context from previous 2 pages (for handling continuations):
 # python pdf_to_json.py --prompt english_arabic_dictionary_with_context --pdf_file pdf/physica1.pdf --checkpoint_file json/physica1/checkpoint.json --output_file json/physica1/output.json --context_pages 2
 #
-# Extraction with context from previous 3 pages:
+# Right-to-left dictionary with context from previous 3 pages:
 # python pdf_to_json.py --prompt english_arabic_dictionary_with_context --pdf_file pdf/physica1.pdf --checkpoint_file json/physica1/checkpoint.json --output_file json/physica1/output.json --context_pages 3
+#
+# Flat dictionary with context from previous 2 pages (for handling continuations):
+# python pdf_to_json.py --prompt flat_dictionary_with_context --pdf_file pdf/some_dictionary.pdf --checkpoint_file json/some_dictionary/checkpoint.json --output_file json/some_dictionary/output.json --context_pages 2
