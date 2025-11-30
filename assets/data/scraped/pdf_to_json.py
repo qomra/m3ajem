@@ -134,6 +134,7 @@ def process_page(page_image, prompt_name, previous_pages_text=None):
                 ]
             }
         ],
+        reasoning_effort="low",
         temperature=1
     )
     # The model should output pure JSON
@@ -201,11 +202,17 @@ def process_pdf(pdf_path, checkpoint_file="checkpoint.json", prompt_name="englis
     checkpoint = load_checkpoint(checkpoint_file)
     entries_dict = checkpoint['entries']  # Now a dict with arabic_main_word as key
     start_page = checkpoint['last_page']
-    page_history = checkpoint.get('page_history', [])
+
+    # Only load/maintain history if context_pages > 0
+    if context_pages > 0:
+        page_history = checkpoint.get('page_history', [])
+    else:
+        page_history = []  # Don't use history when context is disabled
 
     if start_page > 0:
         print(f"Resuming from page {start_page + 1}/{len(images)}")
-        print(f"Loaded {len(page_history)} pages of context from checkpoint")
+        if context_pages > 0 and page_history:
+            print(f"Loaded {len(page_history)} pages of context from checkpoint")
 
     for i, page_image in enumerate(images, start=1):
         # Skip pages already processed
@@ -248,8 +255,9 @@ def process_pdf(pdf_path, checkpoint_file="checkpoint.json", prompt_name="englis
 
         print(f"  Extracted {len(new_entries)} entries from page {i}, total unique: {len(entries_dict)}")
 
-        # Add current page entries to history for next page's context
-        page_history.append(new_entries)
+        # Add current page entries to history for next page's context (only if context enabled)
+        if context_pages > 0:
+            page_history.append(new_entries)
 
         # Save checkpoint after each page
         save_checkpoint(checkpoint_file, entries_dict, i, page_history)
