@@ -15,13 +15,24 @@ MODEL = "gpt-5.1"  # lower-cost, faster version of GPT-5.1
 
 prompts = {
     "english_arabic_dictionary": """
-You are given a page from a bilingual English–Arabic botanical lexicon.
-Extract data as a JSON array like:
-[{"english":"...", "arabic":"...", "arabic_main_word":"..."}]
+You are given a page from a bilingual dictionary or lexicon.
+
+Extract data as a JSON array with this structure:
+[{"english":"...", "arabic":"...", "arabic_term":"..."}]
+
+IMPORTANT INSTRUCTIONS:
+- "english": The English term or phrase
+- "arabic": The full Arabic text for this entry (may include definitions, notes, field markers like [MECH ENG])
+- "arabic_term": A UNIQUE Arabic phrase that distinguishes this entry from others
+  * This should NOT be just a single word if multiple entries share the same base word
+  * Include context/field markers if present (e.g., "شطب [هندسة ميكانيكية]")
+  * Make it specific enough to uniquely identify this term
+  * Different technical meanings of the same word should have different arabic_term values
+
 Return only valid JSON.
 """,
     "english_arabic_dictionary_with_context": """
-You are given a page from a bilingual English–Arabic botanical lexicon that flows right-to-left.
+You are given a page from a bilingual dictionary or lexicon that flows right-to-left.
 
 IMPORTANT: This book follows right-to-left page layout. When reading consecutive pages:
 - Page N has a right column and a left column
@@ -38,7 +49,17 @@ CURRENT PAGE INSTRUCTIONS:
 4. Only create new entries for content that is NOT a continuation
 
 Extract data as a JSON array with this structure:
-[{{"english":"...", "arabic":"...", "arabic_main_word":"...", "is_continuation": false}}]
+[{{"english":"...", "arabic":"...", "arabic_term":"...", "is_continuation": false}}]
+
+FIELD DESCRIPTIONS:
+- "english": The English term or phrase
+- "arabic": The full Arabic text for this entry (may include definitions, notes, field markers)
+- "arabic_term": A UNIQUE Arabic phrase that distinguishes this entry from others
+  * This should NOT be just a single word if multiple entries share the same base word
+  * Include context/field markers if present (e.g., "شطب [هندسة ميكانيكية]", "شطب [هندسة الإنتاج]")
+  * Make it specific enough to uniquely identify this term
+  * Different technical meanings of the same word should have different arabic_term values
+- "is_continuation": true if this is a continuation of a previous entry, false otherwise
 
 For continued entries, mark them with "is_continuation": true and include the full merged content.
 
@@ -60,7 +81,17 @@ CURRENT PAGE INSTRUCTIONS:
 5. Extract all other complete entries on this page
 
 Extract data as a JSON array with this structure:
-[{{"english":"...", "arabic":"...", "arabic_main_word":"...", "is_continuation": false}}]
+[{{"english":"...", "arabic":"...", "arabic_term":"...", "is_continuation": false}}]
+
+FIELD DESCRIPTIONS:
+- "english": The English term or phrase
+- "arabic": The full Arabic text for this entry (may include definitions, notes, field markers)
+- "arabic_term": A UNIQUE Arabic phrase that distinguishes this entry from others
+  * This should NOT be just a single word if multiple entries share the same base word
+  * Include context/field markers if present (e.g., "شطب [هندسة ميكانيكية]", "شطب [هندسة الإنتاج]")
+  * Make it specific enough to uniquely identify this term
+  * Different technical meanings of the same word should have different arabic_term values
+- "is_continuation": true if this is a continuation of a previous entry, false otherwise
 
 For continued entries, mark them with "is_continuation": true and include the full merged content.
 
@@ -152,10 +183,10 @@ def load_checkpoint(checkpoint_file):
         with open(checkpoint_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
             entries = data.get('entries', [])
-            # Convert list to dict with arabic_main_word as key (for deduplication)
+            # Convert list to dict with arabic_term as key (for deduplication)
             entries_dict = {}
             for entry in entries:
-                key = entry.get('arabic_main_word', '')
+                key = entry.get('arabic_term', '')
                 if key:
                     entries_dict[key] = entry
             print(f"✓ Loaded checkpoint: {len(entries_dict)} unique entries from {data.get('last_page', 0)} pages")
@@ -170,7 +201,7 @@ def save_checkpoint(checkpoint_file, entries_dict, last_page, page_history):
     """Save checkpoint after processing a page
 
     Args:
-        entries_dict: Dictionary with arabic_main_word as key
+        entries_dict: Dictionary with arabic_term as key
         last_page: Last processed page number
         page_history: List of previous pages' entries
     """
@@ -200,7 +231,7 @@ def process_pdf(pdf_path, checkpoint_file="checkpoint.json", prompt_name="englis
 
     # Load existing checkpoint
     checkpoint = load_checkpoint(checkpoint_file)
-    entries_dict = checkpoint['entries']  # Now a dict with arabic_main_word as key
+    entries_dict = checkpoint['entries']  # Now a dict with arabic_term as key
     start_page = checkpoint['last_page']
 
     # Only load/maintain history if context_pages > 0
@@ -231,12 +262,12 @@ def process_pdf(pdf_path, checkpoint_file="checkpoint.json", prompt_name="englis
         # Process current page with context
         entries = process_page(page_image, prompt_name, previous_context)
 
-        # Handle continuations and add to dict (using arabic_main_word as key)
+        # Handle continuations and add to dict (using arabic_term as key)
         new_entries = []
         for entry in entries:
-            arabic_word = entry.get('arabic_main_word', '')
-            if not arabic_word:
-                print(f"  ⚠ Warning: Entry without arabic_main_word, skipping: {entry}")
+            arabic_term = entry.get('arabic_term', '')
+            if not arabic_term:
+                print(f"  ⚠ Warning: Entry without arabic_term, skipping: {entry}")
                 continue
 
             # Remove is_continuation flag if present
@@ -244,13 +275,13 @@ def process_pdf(pdf_path, checkpoint_file="checkpoint.json", prompt_name="englis
                 entry_copy = entry.copy()
                 entry_copy.pop('is_continuation', None)
                 entry = entry_copy
-                print(f"  ⚠ Entry marked as continuation (merged): {arabic_word}")
+                print(f"  ⚠ Entry marked as continuation (merged): {arabic_term}")
 
-            # Add to dict - this will override any previous entry with same arabic_main_word
-            if arabic_word in entries_dict:
-                print(f"  🔄 Overriding existing entry: {arabic_word}")
+            # Add to dict - this will override any previous entry with same arabic_term
+            if arabic_term in entries_dict:
+                print(f"  🔄 Overriding existing entry: {arabic_term}")
 
-            entries_dict[arabic_word] = entry
+            entries_dict[arabic_term] = entry
             new_entries.append(entry)
 
         print(f"  Extracted {len(new_entries)} entries from page {i}, total unique: {len(entries_dict)}")
