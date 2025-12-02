@@ -7,8 +7,13 @@ import os
 import json
 import requests
 
-FOLDER_ID = '1aIVlLbrhxWjNJ_CsVV2BS4P9s4LqOeHD'
-API_KEY = 'REMOVED_API_KEY'
+FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID', '1aIVlLbrhxWjNJ_CsVV2BS4P9s4LqOeHD')
+API_KEY = os.environ.get('GOOGLE_API_KEY')
+
+if not API_KEY:
+    print("Error: GOOGLE_API_KEY environment variable is required")
+    print("Set it with: export GOOGLE_API_KEY='your-api-key'")
+    exit(1)
 
 def list_files():
     """List files using Drive API."""
