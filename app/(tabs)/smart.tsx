@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation, useTheme } from '@hooks';
 import { useChatStore } from '@store/chatStore';
 import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
@@ -250,7 +251,42 @@ export default function SmartScreen() {
           onClearAll={clearActiveContexts}
         />
 
-        <MessageList messages={messages} isLoading={isLoading} isSending={isSending} />
+        {/* Show empty state when no auth configured */}
+        {!hasAPIKey && !hasGatewayAuth && messages.length === 0 ? (
+          <View style={styles.emptyStateContainer}>
+            <View style={styles.emptyStateContent}>
+              <Ionicons name="chatbubbles-outline" size={64} color={theme.colors.textTertiary} />
+              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+                {t('smart.emptyState.title')}
+              </Text>
+              <Text style={[styles.emptyStateDescription, { color: theme.colors.textSecondary }]}>
+                {t('smart.emptyState.description')}
+              </Text>
+
+              <Pressable
+                style={[styles.emptyStateButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowAuthSelector(true)}
+              >
+                <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.emptyStateButtonText}>
+                  {t('smart.emptyState.signIn')}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.emptyStateSecondaryButton, { borderColor: theme.colors.border }]}
+                onPress={() => router.push('/(tabs)/settings')}
+              >
+                <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+                <Text style={[styles.emptyStateSecondaryButtonText, { color: theme.colors.text }]}>
+                  {t('smart.emptyState.goToSettings')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <MessageList messages={messages} isLoading={isLoading} isSending={isSending} />
+        )}
 
         <ChatInput
           ref={inputRef}
@@ -299,5 +335,59 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyStateContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 24,
+    gap: 8,
+    width: '100%',
+  },
+  emptyStateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyStateSecondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 8,
+    width: '100%',
+    borderWidth: 1,
+  },
+  emptyStateSecondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

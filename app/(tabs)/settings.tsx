@@ -97,6 +97,7 @@ export default function SettingsScreen() {
   const [hasAPIKey, setHasAPIKey] = useState(false);
   const [hasSerpAPI, setHasSerpAPI] = useState(false);
   const [gatewayUser, setGatewayUser] = useState<GatewayUser | null>(null);
+  const [hasGatewayToken, setHasGatewayToken] = useState(false);
 
   // Get store methods
   const { deleteAll: deleteAllAudio, downloadAll: downloadAllAudio, getDownloadedCount, getTotalSize } = useAudioStore();
@@ -119,8 +120,17 @@ export default function SettingsScreen() {
   };
 
   const loadGatewayUser = async () => {
-    const user = await GatewayAuthService.getCurrentUser();
-    setGatewayUser(user);
+    // First check if we have a token locally (doesn't require network)
+    const hasToken = await GatewayAuthService.isAuthenticated();
+    setHasGatewayToken(hasToken);
+
+    // Then try to get user info (requires network)
+    if (hasToken) {
+      const user = await GatewayAuthService.getCurrentUser();
+      setGatewayUser(user);
+    } else {
+      setGatewayUser(null);
+    }
   };
 
   const handleAPIConfigSaved = () => {
@@ -349,6 +359,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             await GatewayAuthService.clearToken();
             setGatewayUser(null);
+            setHasGatewayToken(false);
             Alert.alert(t('common.success'), t('settings.logoutSuccess'));
           },
         },
@@ -458,11 +469,14 @@ export default function SettingsScreen() {
             subtitle={hasSerpAPI ? t('settings.serpapi.enabled') : t('settings.serpapi.description')}
             onPress={() => setShowSerpAPIModal(true)}
           />
-          {gatewayUser && (
+          {hasGatewayToken && (
             <SettingsItem
               icon="log-out-outline"
               title={t('smart.auth.signOut')}
-              subtitle={`${t('smart.auth.signedInAs')} ${gatewayUser.email} • ${gatewayUser.daily_requests}/${gatewayUser.daily_limit} ${t('smart.rateLimit')}`}
+              subtitle={gatewayUser
+                ? `${t('smart.auth.signedInAs')} ${gatewayUser.email} • ${gatewayUser.daily_requests}/${gatewayUser.daily_limit} ${t('smart.rateLimit')}`
+                : t('smart.auth.signedInSuccessfully')
+              }
               onPress={handleLogout}
               danger
             />

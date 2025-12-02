@@ -57,10 +57,24 @@ export function AppleSignInButton({ onSuccess }: AppleSignInButtonProps) {
       console.error('Error details:', JSON.stringify(error, null, 2));
 
       let errorMessage = t('smart.auth.signInFailed');
-      if (error.message) {
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.message && typeof error.message === 'string') {
         errorMessage = error.message;
       } else if (error.code) {
         errorMessage = `Error code: ${error.code}`;
+      } else if (error.detail && typeof error.detail === 'string') {
+        errorMessage = error.detail;
+      } else {
+        // Last resort - stringify the error
+        try {
+          const stringified = JSON.stringify(error);
+          if (stringified !== '{}') {
+            errorMessage = stringified;
+          }
+        } catch {
+          // Keep default error message
+        }
       }
 
       Alert.alert(t('common.error'), errorMessage);

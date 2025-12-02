@@ -67,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: t('tabs.moraqman'),
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'library' : 'library-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'scan' : 'scan-outline'} size={size} color={color} />
           ),
         }}
       />

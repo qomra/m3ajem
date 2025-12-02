@@ -81,29 +81,56 @@ export class GatewayAuthService {
     userId: string,
     email?: string
   ): Promise<AuthResponse> {
-    const response = await fetch(`${GATEWAY_URL}/auth/apple/mobile`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      // Build URL with query parameters (like Google auth)
+      const params = new URLSearchParams({
         identity_token: identityToken,
         user_id: userId,
-        email,
-      }),
-    });
+      });
+      if (email) {
+        params.append('email', email);
+      }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Authentication failed');
+      const url = `${GATEWAY_URL}/auth/apple/mobile?${params.toString()}`;
+      console.log('Sending Apple auth request to:', `${GATEWAY_URL}/auth/apple/mobile`);
+      console.log('Identity token length:', identityToken.length);
+      console.log('User ID:', userId);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+
+        try {
+          const error = JSON.parse(errorText);
+          const errorMsg = typeof error.detail === 'string'
+            ? error.detail
+            : (error.message || error.error || JSON.stringify(error));
+          throw new Error(errorMsg);
+        } catch (parseError) {
+          throw new Error(errorText || `Authentication failed with status ${response.status}`);
+        }
+      }
+
+      const data: AuthResponse = await response.json();
+      console.log('Apple authentication successful, got token');
+
+      // Save token
+      await this.saveToken(data.token);
+
+      return data;
+    } catch (error) {
+      console.error('authenticateWithApple error:', error);
+      throw error;
     }
-
-    const data: AuthResponse = await response.json();
-
-    // Save token
-    await this.saveToken(data.token);
-
-    return data;
   }
 
   /**

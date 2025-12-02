@@ -27,7 +27,7 @@
     "pleaseWait": "الرجاء الانتظار، لا تغلق التطبيق"
   },
   "tabs": {
-    "dictionaries": "المعاجم",
+    "dictionaries": "المطبوعة",
     "moraqman": "المرقمنة",
     "indexed": "المفهرس",
     "audio": "صوتي",
@@ -222,6 +222,12 @@
       "signOut": "تسجيل الخروج",
       "dailyLimit": "الحد اليومي",
       "requestsUsed": "{used} من {limit} طلب مستخدم اليوم"
+    },
+    "emptyState": {
+      "title": "المساعد الذكي",
+      "description": "سجّل دخولك للحصول على 30 طلب مجاني يومياً، أو أضف مفتاح API الخاص بك في الإعدادات",
+      "signIn": "تسجيل الدخول",
+      "goToSettings": "الإعدادات"
     }
   },
   "settings": {
