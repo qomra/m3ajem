@@ -63,6 +63,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="moraqman"
+        options={{
+          title: t('tabs.moraqman'),
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'library' : 'library-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="dictionaries"
         options={{
           title: t('tabs.dictionaries'),

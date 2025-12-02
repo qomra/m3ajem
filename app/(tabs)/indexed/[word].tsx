@@ -291,15 +291,33 @@ export default function WordDetailScreen() {
     setCurrentOccurrenceIndex(0);
 
     if (word === root) {
-      // Viewing root word - go to first derived word OR next root
-      // Find all words in this root
+      // Viewing root word - go to FIRST DERIVED WORD in this root, or next root if none
+      // IMPORTANT: Exclude the root word itself from the list of derived words
       const wordsInThisRoot = activeWordList.filter(
-        item => item.root === root && item.dictionaryName === dictionaryName
+        item => item.root === root && item.dictionaryName === dictionaryName && item.word !== root
       );
 
       if (wordsInThisRoot.length > 0) {
-        // Navigate to first derived word in this root
+        // Navigate to first derived word
         router.setParams({ word: wordsInThisRoot[0].word });
+      } else {
+        // No derived words, find next root
+        const firstWordInThisRoot = activeWordList.findIndex(
+          item => item.root === root && item.dictionaryName === dictionaryName
+        );
+
+        if (firstWordInThisRoot >= 0 && firstWordInThisRoot < activeWordList.length - 1) {
+          const nextWord = activeWordList[firstWordInThisRoot + 1];
+          router.replace({
+            pathname: '/(tabs)/indexed/[word]',
+            params: {
+              word: nextWord.root,
+              root: nextWord.root,
+              dictionaryName: nextWord.dictionaryName,
+              viewMode: viewMode || 'flatten',
+            },
+          });
+        }
       }
     } else {
       // Viewing a derived word - go to next derived word OR next root
@@ -439,11 +457,22 @@ export default function WordDetailScreen() {
   // Check if next button should be enabled
   const canGoToNext = useMemo(() => {
     if (word === root) {
-      // Viewing root word - can go next if there are derived words in this root
+      // Viewing root word - can go next if there are derived words OR more roots after
+      // IMPORTANT: Exclude the root word itself from the list of derived words
       const wordsInThisRoot = activeWordList.filter(
+        item => item.root === root && item.dictionaryName === dictionaryName && item.word !== root
+      );
+
+      if (wordsInThisRoot.length > 0) {
+        // Has derived words, can always go next
+        return true;
+      }
+
+      // No derived words, check if there's a next root
+      const firstWordInThisRoot = activeWordList.findIndex(
         item => item.root === root && item.dictionaryName === dictionaryName
       );
-      return wordsInThisRoot.length > 0;
+      return firstWordInThisRoot >= 0 && firstWordInThisRoot < activeWordList.length - 1;
     } else {
       // Viewing derived word - can go next if not at end of list
       return currentWordIndex >= 0 && currentWordIndex < activeWordList.length - 1;

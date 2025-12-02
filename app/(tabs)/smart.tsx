@@ -11,7 +11,6 @@ import { ContextIndicator } from '@components/chat/ContextIndicator';
 import { ChatHeader } from '@components/chat/ChatHeader';
 import { ConversationsModal } from '@components/chat/ConversationsModal';
 import { ProviderSelectorModal } from '@components/chat/ProviderSelectorModal';
-import { ResourceManagerModal } from '@components/resources/ResourceManagerModal';
 import { AuthModeSelector } from '@components/auth/AuthModeSelector';
 import type { APIProvider } from '@services/storage/apiKeyStorage';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -46,7 +45,6 @@ export default function SmartScreen() {
   // UI state
   const [showConversations, setShowConversations] = useState(false);
   const [showProviderSelector, setShowProviderSelector] = useState(false);
-  const [showResources, setShowResources] = useState(false);
   const [showAuthSelector, setShowAuthSelector] = useState(false);
   const [hasAPIKey, setHasAPIKey] = useState(false);
   const [hasGatewayAuth, setHasGatewayAuth] = useState(false);
@@ -244,7 +242,6 @@ export default function SmartScreen() {
           onNewConversation={handleNewConversation}
           onShowConversations={() => setShowConversations(true)}
           onShowProviderSelector={() => setShowProviderSelector(true)}
-          onShowResources={() => setShowResources(true)}
         />
 
         <ContextIndicator
@@ -279,11 +276,6 @@ export default function SmartScreen() {
         availableProviders={availableProviders}
         onClose={() => setShowProviderSelector(false)}
         onSelect={handleProviderSelect}
-      />
-
-      <ResourceManagerModal
-        visible={showResources}
-        onClose={() => setShowResources(false)}
       />
 
       <AuthModeSelector

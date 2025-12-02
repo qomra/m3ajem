@@ -14,7 +14,7 @@ import { SerpAPIStorage } from '@services/storage/serpApiStorage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { APIConfig } from '@services/storage/apiKeyStorage';
 import type { Tool, ToolExecutionResult } from './tools/types';
-import type { Source } from '@/types/sources';
+import type { Source, DictionarySource, IndexedSource, WebSource } from '@/types/sources';
 
 /**
  * Dictionary Tool Agent
@@ -58,6 +58,94 @@ export class DictionaryToolAgent extends BaseAgent {
 
   getDescription(): string {
     return 'Agent with dictionary search and semantic meaning search capabilities';
+  }
+
+  /**
+   * Extract only the sources that were actually cited in the LLM's response
+   * Makes an additional LLM call to identify which sources were used
+   */
+  private async extractCitedSources(
+    responseContent: string,
+    allSources: Source[]
+  ): Promise<Source[]> {
+    // If no sources collected, return empty
+    if (allSources.length === 0) {
+      return [];
+    }
+
+    // If only 1-2 sources, return all (no need for filtering)
+    if (allSources.length <= 2) {
+      return allSources;
+    }
+
+    try {
+      // Build a list of sources with their IDs for the LLM to identify
+      const sourceList = allSources.map((source, index) => {
+        let description = `[${index + 1}] ${source.title}`;
+        if (source.type === 'dictionary' || source.type === 'indexed') {
+          const dictSource = source as DictionarySource | IndexedSource;
+          description += ` (${dictSource.dictionaryName})`;
+        } else if (source.type === 'web') {
+          const webSource = source as WebSource;
+          description += ` - ${webSource.url}`;
+        }
+        return description;
+      }).join('\n');
+
+      const citationPrompt = `بناءً على إجابتك السابقة، حدد أرقام المصادر التي استخدمتها فعلياً في إجابتك.
+
+المصادر المتاحة:
+${sourceList}
+
+إجابتك السابقة:
+${responseContent.substring(0, 1500)}${responseContent.length > 1500 ? '...' : ''}
+
+أجب فقط بأرقام المصادر التي استخدمتها مفصولة بفواصل (مثال: 1, 3, 5). إذا لم تستخدم أي مصدر، أجب بـ "لا شيء".`;
+
+      // Make a quick LLM call to identify cited sources
+      const citationResponse = await this.provider.sendMessage([
+        {
+          role: 'user',
+          content: citationPrompt,
+        },
+      ]);
+
+      // Parse the response to extract source numbers
+      const responseText = citationResponse.content || '';
+
+      // Check if no sources were used
+      if (responseText.includes('لا شيء') || responseText.toLowerCase().includes('none')) {
+        console.log('LLM indicated no sources were used');
+        return [];
+      }
+
+      // Extract numbers from the response
+      const numbers = responseText.match(/\d+/g);
+      if (!numbers || numbers.length === 0) {
+        // If we can't parse the response, return all sources as fallback
+        console.log('Could not parse citation response, returning all sources');
+        return allSources;
+      }
+
+      // Convert to 0-based indices and filter valid ones
+      const citedIndices = numbers
+        .map((n) => parseInt(n, 10) - 1) // Convert to 0-based
+        .filter((i) => i >= 0 && i < allSources.length);
+
+      // Remove duplicates
+      const uniqueIndices = [...new Set(citedIndices)];
+
+      // Return only the cited sources
+      const citedSources = uniqueIndices.map((i) => allSources[i]);
+
+      console.log(`LLM identified ${citedSources.length} cited sources out of ${allSources.length}`);
+      return citedSources;
+
+    } catch (error) {
+      console.error('Error extracting cited sources:', error);
+      // On error, return all sources as fallback
+      return allSources;
+    }
   }
 
   async processMessage(request: AgentRequest): Promise<AgentResponse> {
@@ -218,15 +306,21 @@ export class DictionaryToolAgent extends BaseAgent {
         console.warn('Max tool calling iterations reached');
       }
 
+      // Filter sources to only include those actually cited in the response
+      const citedSources = await this.extractCitedSources(
+        response.content || '',
+        allSources
+      );
+
       const duration = Date.now() - startTime;
 
-      console.log(`Collected ${allSources.length} sources from ${iteration} tool iterations`);
+      console.log(`Collected ${allSources.length} sources, cited ${citedSources.length} in response`);
       console.log(`Captured ${thoughts.length} reasoning steps, total duration: ${duration}ms`);
 
       return {
         success: true,
         content: response.content,
-        sources: allSources,
+        sources: citedSources,
         thoughts,
         duration,
       };

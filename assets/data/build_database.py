@@ -2,39 +2,36 @@
 """
 Consolidated Database Build Script
 ==================================
-Merges new لسان العرب resources with existing data, calculates positions,
-and builds SQLite database.
+Merges dictionary data from multiple sources and builds SQLite database.
 
 Workflow:
-    1. Merge new definitions from new_resources.json into maajim.json
-    2. Calculate word positions for new roots using word lists from dataset.json
-    3. Save updated maajim.json and dataset.json
-    4. Build optimized SQLite database
+    1. Load lo3awi (traditional) dictionaries from ommat.json (15 dictionaries)
+    2. Merge mofahras resources (لسان العرب full text) with ommat
+    3. Load moraqman (AI-digitized) dictionaries from converted files
+    4. Calculate word positions using dataset.json (skip unmatched words)
+    5. Build optimized SQLite database
 
 Usage:
     python build_database.py
 
 Input files:
-    - optimized/maajim.json: Existing dictionary data (all 14 dictionaries)
-    - optimized/new_resources.json: New لسان العرب roots to merge {root: {text: definition}}
-    - optimized/dataset.json: Index data with word lists for لسان العرب
+    - maajim/lo3awi/ommat.json: Traditional dictionaries (15)
+    - maajim/mofahras/resources.json: لسان العرب full text (9,344 roots)
+    - maajim/mofahras/dataset.json: Word lists for لسان العرب
+    - maajim/moraqman/*/[dict_name].json: AI-digitized dictionaries (6)
 
 Output files:
-    - optimized/maajim.json: Updated with merged definitions
-    - optimized/dataset.json: Updated with calculated positions for new roots
-    - optimized/dictionary.db: SQLite database (shipped with app)
-
-Note: Keep updating new_resources.json and dataset.json with new roots/word lists,
-      then run this script to merge and rebuild the database.
+    - database/dictionary.db: SQLite database (shipped with app)
 """
 
 import json
 import sqlite3
 import os
 import re
+import glob
 from typing import Dict, List
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Dictionary indexing patterns
 # Maps dictionary name to its indexing method
@@ -53,6 +50,13 @@ INDEXING_PATTERNS = {
     'معجم المغني': 'root_bracketed',
     'معجم المصطلحات والألفاظ الفقهية': 'word_full',
     'معجم الرائد': 'mixed',
+    # Moraqman dictionaries (default to root_simple for now)
+    'معجم المصطلحات الميكانيكية': 'root_simple',
+    'معجم المصطلحات الطبية': 'root_simple',
+    'معجم أسماء النبات': 'root_simple',
+    'معجم المصطلحات الزراعية': 'root_simple',
+    'معجم المصطلحات الفيزيائية': 'root_simple',
+    'معجم مصطلحات البلاغة': 'root_simple',
 }
 
 def remove_diacritics(text: str) -> str:
@@ -108,7 +112,10 @@ def does_word_match(target_word: str, text_word: str) -> bool:
     return False
 
 def find_all_occurrences(target_word: str, text: str) -> list:
-    """Find ALL occurrence positions of target_word in text."""
+    """
+    Find ALL occurrence positions of target_word in text.
+    SKIP words that don't match using does_word_match().
+    """
     positions = []
     char_position = 0
     current_word = ''
@@ -135,13 +142,15 @@ def process_root_positions(args):
     root, word_list, definition = args
 
     word_data_list = []
-    for item in word_list:
-        # Handle both string format and dict format
-        word = item['word'] if isinstance(item, dict) else item
-
+    for word in word_list:
         # Find ALL occurrences of this word
         all_positions = find_all_occurrences(word, definition)
-        first_position = all_positions[0] if all_positions else 999999
+
+        # SKIP words that don't match (no positions found)
+        if not all_positions:
+            continue
+
+        first_position = all_positions[0]
 
         word_data_list.append({
             'word': word,
@@ -153,68 +162,71 @@ def process_root_positions(args):
     word_data_list.sort(key=lambda x: x['first_position'])
     return (root, word_data_list)
 
-def calculate_positions_for_new_roots(new_resources: Dict, index_data: Dict) -> Dict:
+def calculate_positions_for_roots(dict_name: str, roots_data: Dict, word_lists: Dict) -> Dict:
     """
-    Calculate word positions for new roots that have been added.
+    Calculate word positions for roots using word lists from dataset.json.
 
     Args:
-        new_resources: Dict with structure {name: "...", data: {root: definition}}
-        index_data: Dict of {dict_name: {root: word_list}}
+        dict_name: Dictionary name (e.g., 'لسان العرب')
+        roots_data: Dict of {root: definition}
+        word_lists: Dict of {root: [word1, word2, ...]}
 
     Returns:
-        Updated index_data with positions calculated for new roots
+        Dict of {root: [{word, first_position, positions}, ...]}
     """
-    print(f"\n[Position Calculation] Processing new roots...")
-
-    # Extract name and data
-    dict_name = new_resources.get('name', 'لسان العرب')
-    new_roots_data = new_resources.get('data', {})
-
-    dict_index = index_data.get(dict_name, {})
-    new_roots_count = 0
-    updated_roots_count = 0
+    print(f"\n[Position Calculation] Processing {dict_name}...")
 
     # Prepare tasks for parallel processing
     tasks = []
-    new_roots_to_process = []
-
-    for root, definition in new_roots_data.items():
+    for root, definition in roots_data.items():
         if not definition:
             continue
 
-        # Check if we have word list for this root in index
-        if root in dict_index:
-            word_list = dict_index[root]
-            # Check if positions are already calculated
-            if word_list and isinstance(word_list[0], dict) and 'positions' in word_list[0]:
-                # Already has positions, skip
-                continue
-
+        # Check if we have word list for this root
+        if root in word_lists:
+            word_list = word_lists[root]
             tasks.append((root, word_list, definition))
-            new_roots_to_process.append(root)
-            new_roots_count += 1
 
     if not tasks:
-        print(f"  No new roots to process positions for")
-        return index_data
+        print(f"  No roots to process positions for")
+        return {}
 
-    print(f"  Found {new_roots_count} new roots needing position calculation")
+    print(f"  Found {len(tasks)} roots with word lists")
 
-    # Process in parallel
-    num_workers = min(cpu_count(), len(tasks))
-    print(f"  Using {num_workers} parallel workers...")
+    # Process in parallel with ThreadPoolExecutor
+    # Use fewer workers to be conservative and avoid overwhelming the system
+    num_workers = min(8, len(tasks))
+    print(f"  Using {num_workers} thread workers...")
 
-    with Pool(num_workers) as pool:
-        results = pool.map(process_root_positions, tasks)
+    results = []
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        # Submit all tasks
+        future_to_task = {executor.submit(process_root_positions, task): i for i, task in enumerate(tasks)}
 
-    # Update index with calculated positions
+        # Process results as they complete
+        completed_count = 0
+        for future in as_completed(future_to_task):
+            task_idx = future_to_task[future]
+            try:
+                result = future.result()
+                results.append(result)
+                completed_count += 1
+                if completed_count % 500 == 0:
+                    print(f"    Progress: {completed_count}/{len(tasks)} roots ({100*completed_count/len(tasks):.1f}%)")
+            except Exception as e:
+                print(f"    Error processing root at index {task_idx}: {e}")
+
+    print(f"    Progress: {len(results)}/{len(tasks)} roots (100.0%)")
+
+    # Build index dictionary
+    index_data = {}
+    roots_with_words = 0
     for root, word_data_list in results:
-        dict_index[root] = word_data_list
-        updated_roots_count += 1
+        if word_data_list:  # Only include roots that have at least one matched word
+            index_data[root] = word_data_list
+            roots_with_words += 1
 
-    index_data[dict_name] = dict_index
-
-    print(f"  ✓ Calculated positions for {updated_roots_count} new roots")
+    print(f"  ✓ Calculated positions for {roots_with_words} roots")
     return index_data
 
 def load_json(filepath: str):
@@ -223,56 +235,80 @@ def load_json(filepath: str):
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def save_json(data, filepath: str):
-    """Save data to JSON file."""
-    print(f"Saving {filepath}...")
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def merge_lisan_data(maajim: List[Dict], new_resources: Dict) -> List[Dict]:
+def load_dictionaries() -> List[Dict]:
     """
-    Merge new لسان العرب resources into existing maajim data.
-
-    Args:
-        maajim: List of dictionaries (each with 'name' and 'data')
-        new_resources: Dict with structure: {name: "...", data: {root: definition}}
+    Load all dictionaries from various sources:
+    1. Traditional dictionaries from ommat.json
+    2. Mofahras data (لسان العرب full text)
+    3. Moraqman dictionaries (AI-digitized)
 
     Returns:
-        Updated maajim list
+        List of dictionaries with structure: {name, description, type, data}
     """
-    print("\n[1/5] Merging new لسان العرب resources...")
+    print("\n[1/5] Loading dictionaries...")
 
-    # Extract name and data from new_resources
-    new_dict_name = new_resources.get('name', 'لسان العرب')
-    new_roots_data = new_resources.get('data', {})
+    base_dir = 'maajim'
 
-    # Find لسان العرب dictionary
-    lisan_dict = None
-    for i, dictionary in enumerate(maajim):
-        if dictionary['name'] == new_dict_name:
-            lisan_dict = dictionary
-            lisan_index = i
+    # Load traditional dictionaries
+    ommat_path = os.path.join(base_dir, 'lo3awi', 'ommat.json')
+    ommat = load_json(ommat_path)
+    print(f"  ✓ Loaded {len(ommat)} traditional dictionaries from ommat.json")
+
+    # Add type field to traditional dictionaries
+    for dictionary in ommat:
+        dictionary['type'] = 'lo3awi'
+
+    # Load mofahras resources (لسان العرب full text)
+    mofahras_resources_path = os.path.join(base_dir, 'mofahras', 'resources.json')
+    mofahras_resources = load_json(mofahras_resources_path)
+    print(f"  ✓ Loaded mofahras resources: {len(mofahras_resources.get('data', {}))} roots")
+
+    # Merge mofahras data with لسان العرب in ommat
+    لسان_dict = None
+    for i, dictionary in enumerate(ommat):
+        if dictionary['name'] == 'لسان العرب':
+            لسان_dict = dictionary
+            لسان_index = i
             break
 
-    if not lisan_dict:
-        print(f"ERROR: {new_dict_name} dictionary not found!")
-        return maajim
+    if لسان_dict:
+        original_count = len(لسان_dict['data'])
+        # REPLACE entire لسان العرب data with mofahras resources
+        لسان_dict['data'] = mofahras_resources.get('data', {})
+        ommat[لسان_index] = لسان_dict
+        print(f"  ✓ Merged mofahras into لسان العرب: {original_count} → {len(لسان_dict['data'])} roots")
+    else:
+        print(f"  ⚠️ Warning: لسان العرب not found in ommat.json")
 
-    # REPLACE entire لسان العرب data with new_resources
-    original_count = len(lisan_dict['data'])
+    # Load moraqman dictionaries
+    moraqman_base = os.path.join(base_dir, 'moraqman')
+    moraqman_files = glob.glob(os.path.join(moraqman_base, '*', '*.json'))
 
-    # Filter out empty definitions
-    filtered_data = {root: definition for root, definition in new_roots_data.items() if definition}
+    moraqman_dicts = []
+    for filepath in moraqman_files:
+        # Skip source files (keep only converted files)
+        filename = os.path.basename(filepath)
+        if filename in ['arabic_english_book.json', 'arabic_english_output.json', 'checkpoint.json', 'book_1.json', 'book_2.json']:
+            continue
 
-    # Replace entire data
-    lisan_dict['data'] = filtered_data
-    maajim[lisan_index] = lisan_dict
+        try:
+            dictionary = load_json(filepath)
+            # Verify it has the expected structure
+            if 'name' in dictionary and 'data' in dictionary and 'type' in dictionary:
+                moraqman_dicts.append(dictionary)
+                print(f"  ✓ Loaded moraqman: {dictionary['name']} ({len(dictionary['data'])} entries)")
+        except Exception as e:
+            print(f"  ⚠️ Error loading {filepath}: {e}")
 
-    print(f"  ✓ Original roots: {original_count}")
-    print(f"  ✓ Replaced with: {len(filtered_data)} roots")
-    print(f"  ✓ Total roots now: {len(lisan_dict['data'])}")
+    print(f"  ✓ Loaded {len(moraqman_dicts)} moraqman dictionaries")
 
-    return maajim
+    # Combine all dictionaries
+    all_dicts = ommat + moraqman_dicts
+    print(f"\n  Total dictionaries: {len(all_dicts)}")
+    print(f"    - Lo3awi (traditional): {len(ommat)}")
+    print(f"    - Moraqman (AI-digitized): {len(moraqman_dicts)}")
+
+    return all_dicts
 
 def create_database(db_path: str):
     """Create SQLite database with schema."""
@@ -292,7 +328,8 @@ def create_database(db_path: str):
         CREATE TABLE dictionaries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            indexing_pattern TEXT NOT NULL
+            indexing_pattern TEXT NOT NULL,
+            type TEXT NOT NULL
         )
     ''')
 
@@ -331,7 +368,7 @@ def create_database(db_path: str):
 
     return conn
 
-def populate_database(conn: sqlite3.Connection, maajim: List[Dict], index_data: Dict):
+def populate_database(conn: sqlite3.Connection, all_dicts: List[Dict], index_data: Dict):
     """Populate database with dictionary and index data."""
     cursor = conn.cursor()
 
@@ -344,16 +381,18 @@ def populate_database(conn: sqlite3.Connection, maajim: List[Dict], index_data: 
     total_all_roots = 0
 
     # Insert dictionaries and their data
-    for dictionary in maajim:
+    for dictionary in all_dicts:
         dict_name = dictionary['name']
-        print(f"\n  Processing dictionary: {dict_name}")
+        dict_type = dictionary.get('type', 'lo3awi')
+        print(f"\n  Processing dictionary: {dict_name} ({dict_type})")
 
-        # Insert dictionary with indexing pattern
+        # Insert dictionary with indexing pattern and type
         indexing_pattern = INDEXING_PATTERNS.get(dict_name, 'root_simple')  # Default to root_simple
-        cursor.execute('INSERT INTO dictionaries (name, indexing_pattern) VALUES (?, ?)', (dict_name, indexing_pattern))
+        cursor.execute('INSERT INTO dictionaries (name, indexing_pattern, type) VALUES (?, ?, ?)',
+                      (dict_name, indexing_pattern, dict_type))
         dict_id = cursor.lastrowid
 
-        # Get index data for this dictionary (only لسان العرب has index data)
+        # Get index data for this dictionary (only لسان العرب has index data currently)
         dict_index = index_data.get(dict_name, {})
 
         # Track which roots we've added
@@ -459,72 +498,68 @@ def print_stats(conn: sqlite3.Connection):
 
     # Get per-dictionary stats
     cursor.execute('''
-        SELECT d.name, COUNT(r.id) as root_count
+        SELECT d.name, d.type, COUNT(r.id) as root_count
         FROM dictionaries d
         LEFT JOIN roots r ON d.id = r.dictionary_id
-        GROUP BY d.id, d.name
-        ORDER BY d.name
+        GROUP BY d.id, d.name, d.type
+        ORDER BY d.type, d.name
     ''')
     dict_stats = cursor.fetchall()
 
     print("\n[5/5] Database Statistics:")
-    print("=" * 60)
+    print("=" * 80)
     print(f"Total Dictionaries: {dict_count}")
     print(f"Total Roots: {root_count}")
     print(f"Total Words (indexed): {word_count}")
     print("\nPer-Dictionary Stats:")
-    for name, count in dict_stats:
-        print(f"  {name}: {count:,} roots")
-    print("=" * 60)
+
+    current_type = None
+    for name, dict_type, count in dict_stats:
+        if current_type != dict_type:
+            current_type = dict_type
+            print(f"\n  {dict_type.upper()}:")
+        print(f"    {name}: {count:,} roots")
+    print("=" * 80)
 
 def main():
     """Main execution."""
-    print("=" * 60)
+    print("=" * 80)
     print("M3AJEM DATABASE BUILD SCRIPT")
-    print("=" * 60)
+    print("=" * 80)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Paths
-    base_dir = 'optimized'
-    maajim_path = os.path.join(base_dir, 'maajim.json')
-    new_resources_path = os.path.join(base_dir, 'new_resources.json')
-    index_path = os.path.join(base_dir, 'dataset.json')
-    db_path = os.path.join(base_dir, 'dictionary.db')
+    db_path = 'database/dictionary.db'
+    mofahras_dataset_path = 'maajim/mofahras/dataset.json'
 
-    # Validate input files
-    if not os.path.exists(maajim_path):
-        print(f"ERROR: {maajim_path} not found!")
+    # Validate mofahras dataset
+    if not os.path.exists(mofahras_dataset_path):
+        print(f"ERROR: {mofahras_dataset_path} not found!")
         return
 
-    if not os.path.exists(new_resources_path):
-        print(f"ERROR: {new_resources_path} not found!")
-        return
+    # Load all dictionaries (lo3awi + mofahras + moraqman)
+    all_dicts = load_dictionaries()
 
-    if not os.path.exists(index_path):
-        print(f"ERROR: {index_path} not found!")
-        return
+    # Load word lists for لسان العرب
+    dataset = load_json(mofahras_dataset_path)
+    لسان_word_lists = dataset.get('لسان العرب', {})
+    print(f"  ✓ Loaded word lists for {len(لسان_word_lists)} roots")
 
-    # Load data
-    maajim = load_json(maajim_path)
-    new_resources = load_json(new_resources_path)
-    index_data = load_json(index_path)
+    # Calculate positions for لسان العرب
+    لسان_dict = None
+    for dictionary in all_dicts:
+        if dictionary['name'] == 'لسان العرب':
+            لسان_dict = dictionary
+            break
 
-    # Merge new resources
-    maajim = merge_lisan_data(maajim, new_resources)
-
-    # Calculate positions for new roots
-    index_data = calculate_positions_for_new_roots(new_resources, index_data)
-
-    # Save merged maajim and updated index
-    merged_maajim_path = os.path.join(base_dir, 'maajim.json')
-    updated_index_path = os.path.join(base_dir, 'dataset.json')
-    save_json(maajim, merged_maajim_path)
-    save_json(index_data, updated_index_path)
-    print(f"  ✓ Saved merged dictionary and updated index")
+    index_data = {}
+    if لسان_dict and لسان_word_lists:
+        لسان_index = calculate_positions_for_roots('لسان العرب', لسان_dict['data'], لسان_word_lists)
+        index_data['لسان العرب'] = لسان_index
 
     # Create and populate database
     conn = create_database(db_path)
-    populate_database(conn, maajim, index_data)
+    populate_database(conn, all_dicts, index_data)
 
     # Optimize
     optimize_database(conn)
@@ -538,10 +573,10 @@ def main():
 
     conn.close()
 
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 80)
     print(f"✓ Complete! Database saved to: {db_path}")
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
+    print("=" * 80)
 
 if __name__ == '__main__':
     main()

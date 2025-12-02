@@ -14,7 +14,6 @@ interface ChatHeaderProps {
   onNewConversation: () => void;
   onShowConversations: () => void;
   onShowProviderSelector: () => void;
-  onShowResources: () => void;
 }
 
 export function ChatHeader({
@@ -26,7 +25,6 @@ export function ChatHeader({
   onNewConversation,
   onShowConversations,
   onShowProviderSelector,
-  onShowResources,
 }: ChatHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -52,11 +50,6 @@ export function ChatHeader({
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        {/* Resources button */}
-        <Pressable onPress={onShowResources} style={styles.headerButton}>
-          <Ionicons name="cube-outline" size={24} color={theme.colors.text} />
-        </Pressable>
-
         {/* Provider selector button */}
         {hasAPIKey && availableProviders.length > 1 && (
           <Pressable onPress={onShowProviderSelector} style={styles.headerButton}>

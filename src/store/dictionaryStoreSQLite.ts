@@ -46,6 +46,7 @@ interface ProcessedIndexRoot {
 
 interface DictionaryInfo {
   name: string;
+  type?: string;
 }
 
 interface DictionaryMetadata {
@@ -62,12 +63,16 @@ interface DictionaryState {
   // Loading states
   isLoadingDictionaries: boolean;
   isLoadingMetadata: boolean;
+  isLoadingMoraqmanDictionaries: boolean;
+  isLoadingMoraqmanMetadata: boolean;
   isLoadingRoots: boolean;
   isLoadingWords: boolean;
 
   // Cached data (loaded on demand)
   dictionaries: DictionaryInfo[];
   metadata: DictionaryMetadata | null;
+  moraqmanDictionaries: DictionaryInfo[];
+  moraqmanMetadata: DictionaryMetadata | null;
   processedRoots: ProcessedIndexRoot[];
   processedWords: ProcessedIndexWord[];
 
@@ -79,6 +84,8 @@ interface DictionaryState {
   initializeDatabase: () => Promise<void>;
   loadDictionaries: () => Promise<void>;
   loadMetadata: () => Promise<void>;
+  loadMoraqmanDictionaries: () => Promise<void>;
+  loadMoraqmanMetadata: () => Promise<void>;
   loadAllRoots: () => Promise<void>;
   loadAllWords: () => Promise<void>;
   getRootsForDictionary: (dictionaryName: string) => Promise<string[]>;
@@ -96,10 +103,14 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
   isInitialized: false,
   isLoadingDictionaries: false,
   isLoadingMetadata: false,
+  isLoadingMoraqmanDictionaries: false,
+  isLoadingMoraqmanMetadata: false,
   isLoadingRoots: false,
   isLoadingWords: false,
   dictionaries: [],
   metadata: null,
+  moraqmanDictionaries: [],
+  moraqmanMetadata: null,
   processedRoots: [],
   processedWords: [],
   sortBy: 'alphabetical',
@@ -112,13 +123,13 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       // Check if we've already initialized the database
       const dbVersion = await AsyncStorage.getItem('@m3ajem/db_version');
-      const CURRENT_DB_VERSION = '6'; // Increment this when database structure changes
+      const CURRENT_DB_VERSION = '7'; // Increment this when database structure changes
 
       if (dbVersion !== CURRENT_DB_VERSION) {
         console.log('First launch - copying database...');
 
         // Load database asset
-        const asset = Asset.fromModule(require('../../assets/data/optimized/dictionary.db'));
+        const asset = Asset.fromModule(require('../../assets/data/database/dictionary.db'));
         await asset.downloadAsync();
 
         if (!asset.localUri) {
@@ -174,7 +185,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Load dictionaries list
+  // Load dictionaries list (lo3awi only)
   loadDictionaries: async () => {
     const { db } = get();
     if (!db) {
@@ -185,18 +196,19 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     set({ isLoadingDictionaries: true });
 
     try {
-      console.log('Loading dictionaries from database...');
+      console.log('Loading lo3awi dictionaries from database...');
 
       const rows = await db.getAllAsync<{ name: string }>(`
         SELECT name
         FROM dictionaries
+        WHERE type = 'lo3awi'
         ORDER BY id ASC
       `);
 
       const dictionaries: DictionaryInfo[] = rows.map(row => ({ name: row.name }));
 
       set({ dictionaries, isLoadingDictionaries: false });
-      console.log(`✓ Loaded ${dictionaries.length} dictionaries`);
+      console.log(`✓ Loaded ${dictionaries.length} lo3awi dictionaries`);
     } catch (error) {
       console.error('Error loading dictionaries:', error);
       set({ isLoadingDictionaries: false });
@@ -220,6 +232,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
         SELECT d.name as dictionary_name, COUNT(r.id) as num_roots
         FROM dictionaries d
         LEFT JOIN roots r ON d.id = r.dictionary_id
+        WHERE d.type = 'lo3awi'
         GROUP BY d.id, d.name
         ORDER BY d.id ASC
       `);
@@ -236,6 +249,73 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     } catch (error) {
       console.error('Error loading metadata:', error);
       set({ isLoadingMetadata: false });
+    }
+  },
+
+  // Load moraqman dictionaries list
+  loadMoraqmanDictionaries: async () => {
+    const { db } = get();
+    if (!db) {
+      console.error('Database not initialized');
+      return;
+    }
+
+    set({ isLoadingMoraqmanDictionaries: true });
+
+    try {
+      console.log('Loading moraqman dictionaries from database...');
+
+      const rows = await db.getAllAsync<{ name: string; type: string }>(`
+        SELECT name, type
+        FROM dictionaries
+        WHERE type = 'moraqman'
+        ORDER BY id ASC
+      `);
+
+      const moraqmanDictionaries: DictionaryInfo[] = rows.map(row => ({ name: row.name, type: row.type }));
+
+      set({ moraqmanDictionaries, isLoadingMoraqmanDictionaries: false });
+      console.log(`✓ Loaded ${moraqmanDictionaries.length} moraqman dictionaries`);
+    } catch (error) {
+      console.error('Error loading moraqman dictionaries:', error);
+      set({ isLoadingMoraqmanDictionaries: false });
+    }
+  },
+
+  // Load moraqman metadata (roots count per dictionary)
+  loadMoraqmanMetadata: async () => {
+    const { db } = get();
+    if (!db) {
+      console.error('Database not initialized');
+      return;
+    }
+
+    set({ isLoadingMoraqmanMetadata: true });
+
+    try {
+      console.log('Loading moraqman metadata from database...');
+
+      const rows = await db.getAllAsync<{ dictionary_name: string; num_roots: number }>(`
+        SELECT d.name as dictionary_name, COUNT(r.id) as num_roots
+        FROM dictionaries d
+        LEFT JOIN roots r ON d.id = r.dictionary_id
+        WHERE d.type = 'moraqman'
+        GROUP BY d.id, d.name
+        ORDER BY d.id ASC
+      `);
+
+      const moraqmanMetadata: DictionaryMetadata = {};
+      rows.forEach(row => {
+        moraqmanMetadata[row.dictionary_name] = {
+          num_roots: row.num_roots,
+        };
+      });
+
+      set({ moraqmanMetadata, isLoadingMoraqmanMetadata: false });
+      console.log('✓ Moraqman metadata loaded');
+    } catch (error) {
+      console.error('Error loading moraqman metadata:', error);
+      set({ isLoadingMoraqmanMetadata: false });
     }
   },
 

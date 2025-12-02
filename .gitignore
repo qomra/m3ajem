@@ -171,6 +171,11 @@ assets/data/optimized/dictionary.db
 assets/data/optimized/dictionary.db.backup.*
 assets/data/optimized/maajim.json
 assets/data/optimized/dataset.json
+assets/data/database
+assets/data/maajim
+assets/data/pdf
+assets/data/api_keys
+assets/data/m3ajem-0ea9c5d1f227.json
 
 # OAuth credentials (sensitive)
 googleauth/

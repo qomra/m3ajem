@@ -14,7 +14,7 @@ module.exports = {
     splash: {
       image: "./assets/splash.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#0B2B18"
     },
     newArchEnabled: true,
     assetBundlePatterns: [
@@ -37,7 +37,7 @@ module.exports = {
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        backgroundColor: "#0B2B18"
       },
       package: "com.jalalirs.maajm"
     },
