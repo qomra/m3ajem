@@ -52,6 +52,7 @@ interface DictionaryInfo {
 interface DictionaryMetadata {
   [dictionaryName: string]: {
     num_roots: number;
+    description?: string;
   };
 }
 
@@ -123,7 +124,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       // Check if we've already initialized the database
       const dbVersion = await AsyncStorage.getItem('@m3ajem/db_version');
-      const CURRENT_DB_VERSION = '7'; // Increment this when database structure changes
+      const CURRENT_DB_VERSION = '9'; // Increment this when database structure changes
 
       if (dbVersion !== CURRENT_DB_VERSION) {
         console.log('First launch - copying database...');
@@ -295,12 +296,12 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       console.log('Loading moraqman metadata from database...');
 
-      const rows = await db.getAllAsync<{ dictionary_name: string; num_roots: number }>(`
-        SELECT d.name as dictionary_name, COUNT(r.id) as num_roots
+      const rows = await db.getAllAsync<{ dictionary_name: string; description: string; num_roots: number }>(`
+        SELECT d.name as dictionary_name, COALESCE(d.description, '') as description, COUNT(r.id) as num_roots
         FROM dictionaries d
         LEFT JOIN roots r ON d.id = r.dictionary_id
         WHERE d.type = 'moraqman'
-        GROUP BY d.id, d.name
+        GROUP BY d.id, d.name, d.description
         ORDER BY d.id ASC
       `);
 
@@ -308,6 +309,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
       rows.forEach(row => {
         moraqmanMetadata[row.dictionary_name] = {
           num_roots: row.num_roots,
+          description: row.description,
         };
       });
 

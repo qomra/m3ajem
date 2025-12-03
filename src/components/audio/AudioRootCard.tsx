@@ -22,6 +22,7 @@ export function AudioRootCard({
   const [isDisabled, setIsDisabled] = useState(false);
 
   const isDownloaded = useAudioStore(state => state.isDownloaded(root));
+  const hasAudioFile = useAudioStore(state => state.hasAudioFile(root));
   const downloadProgress = useAudioStore(state => state.downloadProgress[root]);
   const isPlaying = useAudioStore(state => state.isPlaying);
   const currentWord = useAudioStore(state => state.currentWord);
@@ -33,8 +34,14 @@ export function AudioRootCard({
   const isThisRootPlaying = currentWord === root && isPlaying;
   const isCurrentWord = currentWord === root;
   const isDownloading = typeof downloadProgress === 'number';
+  // Check if this root has an audio file available in audioMap
+  const audioAvailable = hasAudioFile;
 
   const handlePlayPause = async () => {
+    if (!audioAvailable) {
+      // No audio file available for this root
+      return;
+    }
     if (isThisRootPlaying) {
       await pauseAudio();
     } else if (isDownloaded) {
@@ -47,6 +54,9 @@ export function AudioRootCard({
   };
 
   const handleDownload = async () => {
+    if (!audioAvailable) {
+      return;
+    }
     if (isDownloaded) {
       await deleteAudio(root);
     } else {
@@ -76,8 +86,8 @@ export function AudioRootCard({
       <Pressable onPress={handleCardPress} disabled={isDisabled}>
         <View style={[styles.header, { flexDirection: 'row' }]}>
           <View style={[styles.controls, { flexDirection: 'row' }]}>
-            {/* Delete button - only show when downloaded */}
-            {isDownloaded && !isDownloading && (
+            {/* Delete button - only show when downloaded and audio available */}
+            {audioAvailable && isDownloaded && !isDownloading && (
               <Pressable
                 style={[styles.iconButton, { backgroundColor: theme.colors.background }]}
                 onPress={handleDownload}
@@ -90,7 +100,7 @@ export function AudioRootCard({
               </Pressable>
             )}
 
-            {/* Play/Pause button - shows download icon if not downloaded */}
+            {/* Play/Pause button - shows different icons based on state */}
             <Pressable
               style={[
                 styles.playButton,
@@ -98,14 +108,22 @@ export function AudioRootCard({
                   backgroundColor: isThisRootPlaying ? theme.colors.primary : theme.colors.background,
                   borderWidth: isThisRootPlaying ? 0 : 2,
                   borderColor: isThisRootPlaying ? theme.colors.primary :
-                              (!isDownloaded && !isDownloading ? theme.colors.textSecondary : theme.colors.primary),
+                              (!audioAvailable ? theme.colors.border :
+                               (!isDownloaded && !isDownloading ? theme.colors.textSecondary : theme.colors.primary)),
+                  opacity: audioAvailable ? 1 : 0.5,
                 },
               ]}
               onPress={handlePlayPause}
-              disabled={isDownloading}
+              disabled={isDownloading || !audioAvailable}
             >
               {isDownloading ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : !audioAvailable ? (
+                <Ionicons
+                  name="volume-mute-outline"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
               ) : (
                 <Ionicons
                   name={isThisRootPlaying ? 'pause' : (!isDownloaded ? 'cloud-download-outline' : 'play')}

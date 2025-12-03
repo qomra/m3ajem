@@ -157,6 +157,7 @@ export default function MoraqmanList() {
         visible={selectedDictionary !== null}
         dictionaryName={selectedDictionary || ''}
         rootsCount={selectedDictionary ? moraqmanMetadata?.[selectedDictionary]?.num_roots || 0 : 0}
+        description={selectedDictionary ? moraqmanMetadata?.[selectedDictionary]?.description : undefined}
         onClose={handleCloseInfo}
       />
     </View>

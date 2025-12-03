@@ -14,6 +14,7 @@ export function AudioPlayer() {
   const repeatMode = useAudioStore(state => state.repeatMode);
   const playbackPosition = useAudioStore(state => state.playbackPosition);
   const playbackDuration = useAudioStore(state => state.playbackDuration);
+  const playbackSpeed = useAudioStore(state => state.playbackSpeed);
   const currentRootsList = useAudioStore(state => state.currentRootsList);
   const downloadedFiles = useAudioStore(state => state.downloadedFiles);
 
@@ -21,6 +22,7 @@ export function AudioPlayer() {
   const pauseAudio = useAudioStore(state => state.pauseAudio);
   const stopAudio = useAudioStore(state => state.stopAudio);
   const cycleRepeatMode = useAudioStore(state => state.cycleRepeatMode);
+  const cyclePlaybackSpeed = useAudioStore(state => state.cyclePlaybackSpeed);
   const playNext = useAudioStore(state => state.playNext);
   const playPrevious = useAudioStore(state => state.playPrevious);
 
@@ -68,6 +70,17 @@ export function AudioPlayer() {
   const handlePrevious = useCallback(async () => {
     await playPrevious();
   }, [playPrevious]);
+
+  const handleSpeedChange = useCallback(async () => {
+    await cyclePlaybackSpeed();
+  }, [cyclePlaybackSpeed]);
+
+  const speedLabel = useMemo(() => {
+    if (playbackSpeed === 1.0) return '1x';
+    if (playbackSpeed === 1.25) return '1.25x';
+    if (playbackSpeed === 1.5) return '1.5x';
+    return '2x';
+  }, [playbackSpeed]);
 
   const formatTime = useMemo(() => {
     return (millis: number) => {
@@ -196,6 +209,28 @@ export function AudioPlayer() {
           >
             <Ionicons name="stop" size={24} color={theme.colors.textSecondary} />
           </Pressable>
+
+          {/* Speed button */}
+          <Pressable
+            style={[
+              styles.speedButton,
+              {
+                backgroundColor: playbackSpeed !== 1.0
+                  ? theme.colors.primary + '20'
+                  : theme.colors.background,
+              },
+            ]}
+            onPress={handleSpeedChange}
+          >
+            <Text
+              style={[
+                styles.speedText,
+                { color: playbackSpeed !== 1.0 ? theme.colors.primary : theme.colors.textSecondary },
+              ]}
+            >
+              {speedLabel}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </View>
@@ -295,5 +330,17 @@ const styles = StyleSheet.create({
     right: -4,
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  speedButton: {
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  speedText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -12,17 +12,19 @@ Workflow:
     5. Build optimized SQLite database
 
 Usage:
-    python build_database.py
+    python build_database.py              # Full rebuild
+    python build_database.py --moraqman   # Only rebuild moraqman dictionaries
 
 Input files:
     - maajim/lo3awi/ommat.json: Traditional dictionaries (15)
     - maajim/mofahras/resources.json: لسان العرب full text (9,344 roots)
     - maajim/mofahras/dataset.json: Word lists for لسان العرب
-    - maajim/moraqman/*/[dict_name].json: AI-digitized dictionaries (6)
+    - maajim/moraqman/*/[dict_name].json: AI-digitized dictionaries (10)
 
 Output files:
     - database/dictionary.db: SQLite database (shipped with app)
 """
+import argparse
 
 import json
 import sqlite3
@@ -328,6 +330,7 @@ def create_database(db_path: str):
         CREATE TABLE dictionaries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL DEFAULT '',
             indexing_pattern TEXT NOT NULL,
             type TEXT NOT NULL
         )
@@ -386,10 +389,11 @@ def populate_database(conn: sqlite3.Connection, all_dicts: List[Dict], index_dat
         dict_type = dictionary.get('type', 'lo3awi')
         print(f"\n  Processing dictionary: {dict_name} ({dict_type})")
 
-        # Insert dictionary with indexing pattern and type
+        # Insert dictionary with indexing pattern, type, and description
         indexing_pattern = INDEXING_PATTERNS.get(dict_name, 'root_simple')  # Default to root_simple
-        cursor.execute('INSERT INTO dictionaries (name, indexing_pattern, type) VALUES (?, ?, ?)',
-                      (dict_name, indexing_pattern, dict_type))
+        description = dictionary.get('description', '')
+        cursor.execute('INSERT INTO dictionaries (name, description, indexing_pattern, type) VALUES (?, ?, ?, ?)',
+                      (dict_name, description, indexing_pattern, dict_type))
         dict_id = cursor.lastrowid
 
         # Get index data for this dictionary (only لسان العرب has index data currently)
@@ -521,57 +525,191 @@ def print_stats(conn: sqlite3.Connection):
         print(f"    {name}: {count:,} roots")
     print("=" * 80)
 
+def load_moraqman_only() -> List[Dict]:
+    """Load only moraqman dictionaries."""
+    print("\n[1/3] Loading moraqman dictionaries...")
+
+    base_dir = 'maajim'
+    moraqman_base = os.path.join(base_dir, 'moraqman')
+    moraqman_files = glob.glob(os.path.join(moraqman_base, '*', '*.json'))
+
+    moraqman_dicts = []
+    for filepath in moraqman_files:
+        # Skip source files (keep only converted files)
+        filename = os.path.basename(filepath)
+        if filename in ['arabic_english_book.json', 'arabic_english_output.json', 'checkpoint.json', 'book_1.json', 'book_2.json']:
+            continue
+
+        try:
+            dictionary = load_json(filepath)
+            # Verify it has the expected structure
+            if 'name' in dictionary and 'data' in dictionary and 'type' in dictionary:
+                moraqman_dicts.append(dictionary)
+                print(f"  ✓ Loaded: {dictionary['name']} ({len(dictionary['data'])} entries)")
+        except Exception as e:
+            print(f"  ⚠️ Error loading {filepath}: {e}")
+
+    print(f"\n  Total moraqman dictionaries: {len(moraqman_dicts)}")
+    return moraqman_dicts
+
+
+def rebuild_moraqman(db_path: str, moraqman_dicts: List[Dict]):
+    """Rebuild only moraqman dictionaries in existing database."""
+    print(f"\n[2/3] Rebuilding moraqman in {db_path}...")
+
+    if not os.path.exists(db_path):
+        print(f"ERROR: Database {db_path} not found! Run full build first.")
+        return
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Check if description column exists, add if not
+    cursor.execute("PRAGMA table_info(dictionaries)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'description' not in columns:
+        print("  Adding description column to dictionaries table...")
+        cursor.execute("ALTER TABLE dictionaries ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+
+    # Delete existing moraqman dictionaries and their roots/words
+    print("  Deleting existing moraqman data...")
+    cursor.execute('''
+        DELETE FROM words WHERE root_id IN (
+            SELECT r.id FROM roots r
+            JOIN dictionaries d ON r.dictionary_id = d.id
+            WHERE d.type = 'moraqman'
+        )
+    ''')
+    cursor.execute('''
+        DELETE FROM roots WHERE dictionary_id IN (
+            SELECT id FROM dictionaries WHERE type = 'moraqman'
+        )
+    ''')
+    cursor.execute("DELETE FROM dictionaries WHERE type = 'moraqman'")
+    conn.commit()
+    print("  ✓ Existing moraqman data deleted")
+
+    # Insert new moraqman dictionaries
+    print("  Inserting new moraqman dictionaries...")
+    for dictionary in moraqman_dicts:
+        dict_name = dictionary['name']
+        dict_type = dictionary.get('type', 'moraqman')
+        description = dictionary.get('description', '')
+        indexing_pattern = INDEXING_PATTERNS.get(dict_name, 'root_simple')
+
+        cursor.execute(
+            'INSERT INTO dictionaries (name, description, indexing_pattern, type) VALUES (?, ?, ?, ?)',
+            (dict_name, description, indexing_pattern, dict_type)
+        )
+        dict_id = cursor.lastrowid
+
+        # Insert roots
+        root_count = 0
+        for root, definition in dictionary['data'].items():
+            if not definition:
+                continue
+            cursor.execute(
+                'INSERT INTO roots (dictionary_id, root, definition, first_word_position) VALUES (?, ?, ?, ?)',
+                (dict_id, root, definition, -1)
+            )
+            root_count += 1
+
+        print(f"    ✓ {dict_name}: {root_count} roots")
+
+    conn.commit()
+
+    # Optimize
+    print("\n[3/3] Optimizing database...")
+    cursor.execute('ANALYZE')
+    cursor.execute('VACUUM')
+    conn.commit()
+    print("  ✓ Database optimized")
+
+    # Print moraqman stats
+    cursor.execute('''
+        SELECT d.name, COUNT(r.id) as root_count
+        FROM dictionaries d
+        LEFT JOIN roots r ON d.id = r.dictionary_id
+        WHERE d.type = 'moraqman'
+        GROUP BY d.id, d.name
+        ORDER BY d.name
+    ''')
+    stats = cursor.fetchall()
+
+    print("\nMoraqman Dictionary Stats:")
+    print("=" * 50)
+    for name, count in stats:
+        print(f"  {name}: {count:,} roots")
+    print("=" * 50)
+
+    conn.close()
+
+
 def main():
     """Main execution."""
+    parser = argparse.ArgumentParser(description='Build M3ajem database')
+    parser.add_argument('--moraqman', action='store_true', help='Only rebuild moraqman dictionaries')
+    args = parser.parse_args()
+
     print("=" * 80)
     print("M3AJEM DATABASE BUILD SCRIPT")
+    if args.moraqman:
+        print("MODE: Moraqman only")
     print("=" * 80)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Paths
     db_path = 'database/dictionary.db'
-    mofahras_dataset_path = 'maajim/mofahras/dataset.json'
 
-    # Validate mofahras dataset
-    if not os.path.exists(mofahras_dataset_path):
-        print(f"ERROR: {mofahras_dataset_path} not found!")
-        return
+    if args.moraqman:
+        # Moraqman-only rebuild
+        moraqman_dicts = load_moraqman_only()
+        rebuild_moraqman(db_path, moraqman_dicts)
+    else:
+        # Full rebuild
+        mofahras_dataset_path = 'maajim/mofahras/dataset.json'
 
-    # Load all dictionaries (lo3awi + mofahras + moraqman)
-    all_dicts = load_dictionaries()
+        # Validate mofahras dataset
+        if not os.path.exists(mofahras_dataset_path):
+            print(f"ERROR: {mofahras_dataset_path} not found!")
+            return
 
-    # Load word lists for لسان العرب
-    dataset = load_json(mofahras_dataset_path)
-    لسان_word_lists = dataset.get('لسان العرب', {})
-    print(f"  ✓ Loaded word lists for {len(لسان_word_lists)} roots")
+        # Load all dictionaries (lo3awi + mofahras + moraqman)
+        all_dicts = load_dictionaries()
 
-    # Calculate positions for لسان العرب
-    لسان_dict = None
-    for dictionary in all_dicts:
-        if dictionary['name'] == 'لسان العرب':
-            لسان_dict = dictionary
-            break
+        # Load word lists for لسان العرب
+        dataset = load_json(mofahras_dataset_path)
+        لسان_word_lists = dataset.get('لسان العرب', {})
+        print(f"  ✓ Loaded word lists for {len(لسان_word_lists)} roots")
 
-    index_data = {}
-    if لسان_dict and لسان_word_lists:
-        لسان_index = calculate_positions_for_roots('لسان العرب', لسان_dict['data'], لسان_word_lists)
-        index_data['لسان العرب'] = لسان_index
+        # Calculate positions for لسان العرب
+        لسان_dict = None
+        for dictionary in all_dicts:
+            if dictionary['name'] == 'لسان العرب':
+                لسان_dict = dictionary
+                break
 
-    # Create and populate database
-    conn = create_database(db_path)
-    populate_database(conn, all_dicts, index_data)
+        index_data = {}
+        if لسان_dict and لسان_word_lists:
+            لسان_index = calculate_positions_for_roots('لسان العرب', لسان_dict['data'], لسان_word_lists)
+            index_data['لسان العرب'] = لسان_index
 
-    # Optimize
-    optimize_database(conn)
+        # Create and populate database
+        conn = create_database(db_path)
+        populate_database(conn, all_dicts, index_data)
 
-    # Print stats
-    print_stats(conn)
+        # Optimize
+        optimize_database(conn)
+
+        # Print stats
+        print_stats(conn)
+
+        conn.close()
 
     # Get file size
     db_size_mb = os.path.getsize(db_path) / (1024 * 1024)
     print(f"\nDatabase file size: {db_size_mb:.2f} MB")
-
-    conn.close()
 
     print("\n" + "=" * 80)
     print(f"✓ Complete! Database saved to: {db_path}")

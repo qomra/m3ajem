@@ -17,15 +17,18 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
   const repeatMode = useAudioStore(state => state.repeatMode);
   const playbackPosition = useAudioStore(state => state.playbackPosition);
   const playbackDuration = useAudioStore(state => state.playbackDuration);
+  const playbackSpeed = useAudioStore(state => state.playbackSpeed);
   const downloadProgress = useAudioStore(state => state.downloadProgress[root]);
   const currentRootsList = useAudioStore(state => state.currentRootsList);
   const downloadedFiles = useAudioStore(state => state.downloadedFiles);
 
   const isDownloaded = useAudioStore(state => state.isDownloaded);
+  const hasAudioFile = useAudioStore(state => state.hasAudioFile);
   const playAudio = useAudioStore(state => state.playAudio);
   const pauseAudio = useAudioStore(state => state.pauseAudio);
   const stopAudio = useAudioStore(state => state.stopAudio);
   const cycleRepeatMode = useAudioStore(state => state.cycleRepeatMode);
+  const cyclePlaybackSpeed = useAudioStore(state => state.cyclePlaybackSpeed);
   const downloadAudio = useAudioStore(state => state.downloadAudio);
   const deleteAudio = useAudioStore(state => state.deleteAudio);
 
@@ -33,6 +36,7 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
 
   const isThisRootPlaying = currentWord === root && isPlaying;
   const rootDownloaded = isDownloaded(root);
+  const audioAvailable = hasAudioFile(root);
   const isDownloading = typeof downloadProgress === 'number';
 
   // MEMOIZED: These calculations are expensive and should only run when dependencies change
@@ -72,6 +76,9 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
   }, [currentIndex, currentRootsList, downloadedFiles]);
 
   const handlePlayPause = async () => {
+    if (!audioAvailable) {
+      return;
+    }
     if (isThisRootPlaying) {
       await pauseAudio();
     } else if (rootDownloaded) {
@@ -83,6 +90,9 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
   };
 
   const handleDownload = async () => {
+    if (!audioAvailable) {
+      return;
+    }
     if (rootDownloaded) {
       await deleteAudio(root);
     } else {
@@ -144,6 +154,13 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
     }
   };
 
+  const speedLabel = useMemo(() => {
+    if (playbackSpeed === 1.0) return '1x';
+    if (playbackSpeed === 1.25) return '1.25x';
+    if (playbackSpeed === 1.5) return '1.5x';
+    return '2x';
+  }, [playbackSpeed]);
+
   const formatTime = useMemo(() => {
     return (millis: number) => {
       const totalSeconds = Math.floor(millis / 1000);
@@ -162,7 +179,7 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
     <View style={[styles.audioControlsCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
       <View style={[styles.audioControls, { flexDirection: 'row' }]}>
         {/* Delete button - first in code = leftmost in LTR */}
-        {rootDownloaded && !isDownloading && (
+        {audioAvailable && rootDownloaded && !isDownloading && (
           <Pressable
             style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
             onPress={handleDownload}
@@ -179,8 +196,9 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
         <Pressable
           style={[styles.controlButton, { backgroundColor: theme.colors.background }]}
           onPress={stopAudio}
+          disabled={!audioAvailable}
         >
-          <Ionicons name="stop" size={20} color={theme.colors.textSecondary} />
+          <Ionicons name="stop" size={20} color={audioAvailable ? theme.colors.textSecondary : theme.colors.border} />
         </Pressable>
 
         {/* Play/Pause button */}
@@ -191,14 +209,22 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
               backgroundColor: isThisRootPlaying ? theme.colors.primary : theme.colors.background,
               borderWidth: isThisRootPlaying ? 0 : 2,
               borderColor: isThisRootPlaying ? theme.colors.primary :
-                          (!rootDownloaded && !isDownloading ? theme.colors.textSecondary : theme.colors.primary),
+                          (!audioAvailable ? theme.colors.border :
+                           (!rootDownloaded && !isDownloading ? theme.colors.textSecondary : theme.colors.primary)),
+              opacity: audioAvailable ? 1 : 0.5,
             },
           ]}
           onPress={handlePlayPause}
-          disabled={isDownloading}
+          disabled={isDownloading || !audioAvailable}
         >
           {isDownloading ? (
             <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : !audioAvailable ? (
+            <Ionicons
+              name="volume-mute-outline"
+              size={24}
+              color={theme.colors.textSecondary}
+            />
           ) : (
             <Ionicons
               name={isThisRootPlaying ? 'pause' : (!rootDownloaded ? 'cloud-download-outline' : 'play')}
@@ -231,6 +257,28 @@ const AudioControlsSection = React.memo(({ root, dictionaryName }: { root: strin
               <Text style={[styles.repeatBadge, { color: theme.colors.primary }]}>1</Text>
             )}
           </View>
+        </Pressable>
+
+        {/* Speed button */}
+        <Pressable
+          style={[
+            styles.speedButton,
+            {
+              backgroundColor: playbackSpeed !== 1.0
+                ? theme.colors.primary + '20'
+                : theme.colors.background,
+            },
+          ]}
+          onPress={cyclePlaybackSpeed}
+        >
+          <Text
+            style={[
+              styles.speedText,
+              { color: playbackSpeed !== 1.0 ? theme.colors.primary : theme.colors.textSecondary },
+            ]}
+          >
+            {speedLabel}
+          </Text>
         </Pressable>
 
         {/* Playable navigation - <| (skip-back) = previous - rightmost button */}
@@ -534,6 +582,18 @@ const styles = StyleSheet.create({
     right: -4,
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  speedButton: {
+    paddingHorizontal: 10,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 44,
+  },
+  speedText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   playButton: {
     width: 52,

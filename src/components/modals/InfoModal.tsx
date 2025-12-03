@@ -16,12 +16,13 @@ interface InfoModalProps {
   visible: boolean;
   dictionaryName: string;
   rootsCount: number;
+  description?: string;
   onClose: () => void;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: InfoModalProps) {
+export function InfoModal({ visible, dictionaryName, rootsCount, description: descriptionProp, onClose }: InfoModalProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -82,9 +83,10 @@ export function InfoModal({ visible, dictionaryName, rootsCount, onClose }: Info
     })
   ).current;
 
-  const description = dictionaryName
+  // Use provided description prop if available, otherwise try to get from translations
+  const description = descriptionProp || (dictionaryName
     ? t(`dictionaries.descriptions.${dictionaryName}` as any) || ''
-    : '';
+    : '');
 
   return (
     <Modal

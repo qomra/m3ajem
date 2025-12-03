@@ -23,14 +23,30 @@ export default function AudioTab() {
   const loadDownloadedFiles = useAudioStore(state => state.loadDownloadedFiles);
   const setCurrentRootsList = useAudioStore(state => state.setCurrentRootsList);
   const setCurrentSortAndFilter = useAudioStore(state => state.setCurrentSortAndFilter);
+  const setAvailableRoots = useAudioStore(state => state.setAvailableRoots);
   const isDownloaded = useAudioStore(state => state.isDownloaded);
   const currentWord = useAudioStore(state => state.currentWord);
   const searchRootInDictionary = useDictionaryStore(state => state.searchRootInDictionary);
+  const processedRoots = useDictionaryStore(state => state.processedRoots);
+  const loadAllRoots = useDictionaryStore(state => state.loadAllRoots);
+  const isLoadingRoots = useDictionaryStore(state => state.isLoadingRoots);
 
-  // Load downloaded files when component mounts
+  // Load roots from database when component mounts
   useEffect(() => {
     loadDownloadedFiles();
+    if (processedRoots.length === 0) {
+      loadAllRoots();
+    }
   }, []);
+
+  // When processedRoots from database changes, update audioStore's availableRoots
+  useEffect(() => {
+    if (processedRoots.length > 0) {
+      // Extract unique roots from the database (لسان العرب)
+      const roots = processedRoots.map(item => item.root);
+      setAvailableRoots(roots);
+    }
+  }, [processedRoots, setAvailableRoots]);
 
   // Handle sort change - increment randomSeed when switching to random
   const handleSortChange = (newSort: 'alphabetical' | 'longest' | 'shortest' | 'random') => {
@@ -141,6 +157,9 @@ export default function AudioTab() {
   // Only render the expensive FlatList when on the main audio list view
   const isOnMainList = pathname === '/audio';
 
+  // Show loading state while roots are being fetched from database
+  const isLoading = isLoadingRoots || (processedRoots.length === 0 && availableRoots.length === 0);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
@@ -158,37 +177,45 @@ export default function AudioTab() {
             filteredCount={sortedRoots.length}
           />
 
-          <FlatList
-            ref={flatListRef}
-            data={sortedRoots}
-            keyExtractor={(item) => `${item.dictionaryName}-${item.root}`}
-            keyboardShouldPersistTaps='handled'
-            renderItem={({ item }) => (
-              <AudioRootCard
-                root={item.root}
-                dictionaryName={item.dictionaryName}
-                isCurrentlyPlaying={currentWord === item.root}
-              />
-            )}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            onScrollToIndexFailed={(info) => {
-              // Handle scroll failure gracefully
-              setTimeout(() => {
-                flatListRef.current?.scrollToOffset({
-                  offset: info.averageItemLength * info.index,
-                  animated: true,
-                });
-              }, 100);
-            }}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  {t('common.noResults')}
-                </Text>
-              </View>
-            }
-          />
+          {isLoading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                {t('common.loading')}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={sortedRoots}
+              keyExtractor={(item) => `${item.dictionaryName}-${item.root}`}
+              keyboardShouldPersistTaps='handled'
+              renderItem={({ item }) => (
+                <AudioRootCard
+                  root={item.root}
+                  dictionaryName={item.dictionaryName}
+                  isCurrentlyPlaying={currentWord === item.root}
+                />
+              )}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              onScrollToIndexFailed={(info) => {
+                // Handle scroll failure gracefully
+                setTimeout(() => {
+                  flatListRef.current?.scrollToOffset({
+                    offset: info.averageItemLength * info.index,
+                    animated: true,
+                  });
+                }, 100);
+              }}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                    {t('common.noResults')}
+                  </Text>
+                </View>
+              }
+            />
+          )}
 
           {currentWord && <AudioPlayer />}
         </>

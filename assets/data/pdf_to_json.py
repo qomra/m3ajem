@@ -7,8 +7,8 @@ import json
 import os
 import argparse
 
-# Set your API key (recommended: store in environment variable)
-openai.api_key = "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"
+# Set your API key via environment variable
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # Model configuration
 MODEL = "gpt-5.1"  # lower-cost, faster version of GPT-5.1

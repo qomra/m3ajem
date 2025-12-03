@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import audioMapData from '../data/audioMap.json';
-import audioRootsData from '../data/audioRoots.json';
 
 interface AudioFile {
   id: string;
@@ -20,9 +19,9 @@ interface DownloadedFile {
 }
 
 interface AudioState {
-  // Audio map from JSON
+  // Audio map from JSON (provides URLs for roots that have audio files)
   audioMap: Record<string, AudioFile>;
-  // Pre-computed list of roots with audio (all from لسان العرب)
+  // All roots from the database (set by dictionaryStore)
   availableRoots: string[];
   // Current filtered/sorted list for navigation
   currentRootsList: string[];
@@ -42,6 +41,7 @@ interface AudioState {
   repeatMode: 0 | 1 | 2; // 0 = no repeat, 1 = repeat all, 2 = repeat one
   playbackPosition: number;
   playbackDuration: number;
+  playbackSpeed: number; // 1.0, 1.25, 1.5, 2.0
 
   // Actions
   loadDownloadedFiles: () => Promise<void>;
@@ -53,6 +53,7 @@ interface AudioState {
   pauseAudio: () => Promise<void>;
   stopAudio: () => Promise<void>;
   cycleRepeatMode: () => void;
+  cyclePlaybackSpeed: () => Promise<void>;
   setCurrentRootsList: (roots: string[]) => void;
   setCurrentSortAndFilter: (sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random', filter: 'all' | 'downloaded' | 'not-downloaded') => void;
   playNext: () => Promise<void>;
@@ -60,6 +61,8 @@ interface AudioState {
   isDownloaded: (word: string) => boolean;
   getDownloadedCount: () => number;
   getTotalSize: () => number;
+  setAvailableRoots: (roots: string[]) => void;
+  hasAudioFile: (word: string) => boolean;
 }
 
 const AUDIO_DIR = `${FileSystem.documentDirectory}audio/`;
@@ -72,8 +75,8 @@ let loadingWord: string | null = null;
 
 export const useAudioStore = create<AudioState>((set, get) => ({
   audioMap: audioMapData as Record<string, AudioFile>,
-  availableRoots: audioRootsData as string[],
-  currentRootsList: audioRootsData as string[],
+  availableRoots: [], // Will be set from dictionaryStore
+  currentRootsList: [], // Will be populated when availableRoots is set
   currentSortBy: 'alphabetical',
   currentFilter: 'all',
   downloadedFiles: {},
@@ -84,6 +87,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   repeatMode: 0,
   playbackPosition: 0,
   playbackDuration: 0,
+  playbackSpeed: 1.0,
 
   loadDownloadedFiles: async () => {
     try {
@@ -346,8 +350,11 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         return;
       }
 
+      const { playbackSpeed } = get();
       const { sound } = await Audio.Sound.createAsync(audioSource, {
         shouldPlay: true,
+        rate: playbackSpeed,
+        shouldCorrectPitch: true,
       });
 
       // Set sound in state
@@ -443,6 +450,20 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     set((state) => ({ repeatMode: ((state.repeatMode + 1) % 3) as 0 | 1 | 2 }));
   },
 
+  cyclePlaybackSpeed: async () => {
+    const { sound, playbackSpeed } = get();
+    const speeds = [1.0, 1.25, 1.5, 2.0];
+    const currentIndex = speeds.indexOf(playbackSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+
+    set({ playbackSpeed: nextSpeed });
+
+    // Apply to currently playing sound if exists
+    if (sound) {
+      await sound.setRateAsync(nextSpeed, true);
+    }
+  },
+
   setCurrentRootsList: (roots: string[]) => {
     set({ currentRootsList: roots });
   },
@@ -524,5 +545,13 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   getTotalSize: () => {
     const { downloadedFiles } = get();
     return Object.values(downloadedFiles).reduce((sum, file) => sum + file.size, 0);
+  },
+
+  setAvailableRoots: (roots: string[]) => {
+    set({ availableRoots: roots, currentRootsList: roots });
+  },
+
+  hasAudioFile: (word: string) => {
+    return !!get().audioMap[word];
   },
 }));

@@ -23,6 +23,24 @@ import { useChatStore } from '@store/chatStore';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
+// Helper to get display name from email
+const getDisplayName = (email: string): string => {
+  // Get username part (before @)
+  const username = email.split('@')[0];
+
+  // If it's an Apple private relay email, just show "Apple"
+  if (email.includes('privaterelay.appleid.com')) {
+    return 'Apple';
+  }
+
+  // Truncate if too long
+  if (username.length > 15) {
+    return username.substring(0, 12) + '...';
+  }
+
+  return username;
+};
+
 // Settings Section Component
 const SettingsSection = ({ title, children }: { title: string; children: React.ReactNode }) => {
   const theme = useTheme();
@@ -474,7 +492,7 @@ export default function SettingsScreen() {
               icon="log-out-outline"
               title={t('smart.auth.signOut')}
               subtitle={gatewayUser
-                ? `${t('smart.auth.signedInAs')} ${gatewayUser.email} • ${gatewayUser.daily_requests}/${gatewayUser.daily_limit} ${t('smart.rateLimit')}`
+                ? `${t('smart.auth.signedInAs')} ${getDisplayName(gatewayUser.email)} • ${gatewayUser.daily_requests}/${gatewayUser.daily_limit} ${t('smart.rateLimit')}`
                 : t('smart.auth.signedInSuccessfully')
               }
               onPress={handleLogout}
