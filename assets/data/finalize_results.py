@@ -68,14 +68,17 @@ def get_page_results(conn: sqlite3.Connection, dict_id: int) -> List[dict]:
     cursor.execute('''
         SELECT page_num, result_json
         FROM jobs
-        WHERE dictionary_id = ? AND status = 'completed' AND result_json IS NOT NULL
+        WHERE dictionary_id = ? AND status = 'completed' AND result_json IS NOT NULL AND result_json != ''
         ORDER BY page_num ASC
     ''', (dict_id,))
 
-    return [
-        {'page_num': row[0], 'result': json.loads(row[1])}
-        for row in cursor.fetchall()
-    ]
+    results = []
+    for row in cursor.fetchall():
+        try:
+            results.append({'page_num': row[0], 'result': json.loads(row[1])})
+        except json.JSONDecodeError as e:
+            print(f"    ⚠️  Page {row[0]}: Invalid JSON, skipping")
+    return results
 
 
 def merge_page_results(page_results: List[dict]) -> Dict[str, str]:
@@ -101,6 +104,22 @@ def merge_page_results(page_results: List[dict]) -> Dict[str, str]:
         page_num = page_data['page_num']
         result = page_data['result']
 
+        # Handle various wrapped formats from inconsistent LLM output
+        if isinstance(result, dict):
+            # Skip error results
+            if 'error' in result:
+                continue
+
+            # Extract array from various wrapper keys
+            for wrapper_key in ['data', 'entries', 'json', 'result', 'array', 'json_array']:
+                if wrapper_key in result and isinstance(result[wrapper_key], list):
+                    result = result[wrapper_key]
+                    break
+
+            # Handle single entry dict (has french/english/arabic directly)
+            if isinstance(result, dict) and 'arabic_term' in result:
+                result = [result]  # Wrap single entry in list
+
         # Handle different result formats
         if isinstance(result, list):
             # Array format (english_arabic_dictionary)
@@ -109,11 +128,22 @@ def merge_page_results(page_results: List[dict]) -> Dict[str, str]:
                 if entry.get('is_continuation'):
                     continue
 
-                key = entry.get('arabic_term', '')
-                if not key:
+                arabic_term = entry.get('arabic_term', '')
+                if not arabic_term:
                     continue
 
-                value = entry.get('arabic', '')
+                english = entry.get('english', '')
+                arabic_def = entry.get('arabic', '')
+
+                # Create key in hydrology format: "Arabic term (english)"
+                if english:
+                    key = f"{arabic_term} ({english})"
+                    # Value format: "Arabic term\ndefinition"
+                    value = f"{arabic_term}\n{arabic_def}" if arabic_def else arabic_term
+                else:
+                    key = arabic_term
+                    value = arabic_def
+
                 merged[key] = value
                 entry_sources[key] = page_num
                 last_entry_key = key

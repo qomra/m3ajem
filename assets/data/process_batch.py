@@ -18,13 +18,14 @@ import os
 import json
 import argparse
 import base64
+import asyncio
 from io import BytesIO
 from PIL import Image
 import fitz  # PyMuPDF
 from datetime import datetime
 import time
 import tempfile
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI, APITimeoutError, APIConnectionError, InternalServerError, APIStatusError
 
 # Configuration
 DB_PATH = "jobs.db"
@@ -33,6 +34,32 @@ POLL_INTERVAL = 30  # seconds between status checks
 MAX_WAIT_TIME = 3600  # 1 hour max wait per batch
 
 client = OpenAI()
+
+
+def retry_on_error(func, *args, **kwargs):
+    """Retry a function call on transient errors. Keeps retrying until success."""
+    attempt = 0
+    while True:
+        try:
+            return func(*args, **kwargs)
+        except (APITimeoutError, APIConnectionError, InternalServerError) as e:
+            attempt += 1
+            wait_time = min(30 * attempt, 300)  # 30s, 60s, 90s... up to 5 min max
+            error_type = type(e).__name__
+            print(f"  ⏳ {error_type}, waiting {wait_time}s (attempt {attempt})...")
+            time.sleep(wait_time)
+            print(f"  Retrying...")
+        except APIStatusError as e:
+            # Retry on 5xx server errors
+            if e.status_code >= 500:
+                attempt += 1
+                wait_time = min(30 * attempt, 300)
+                print(f"  ⏳ Server error {e.status_code}, waiting {wait_time}s (attempt {attempt})...")
+                time.sleep(wait_time)
+                print(f"  Retrying...")
+            else:
+                raise
+
 
 # Prompts
 PROMPTS = {
@@ -140,6 +167,88 @@ FIELD DESCRIPTIONS:
 Return only valid JSON array.
 """,
 
+    "geography_english_arabic": """
+You are given page image(s) from "معجم المصطلحات الجغرافية" (Dictionary of Geographical Terms).
+
+{context_instruction}
+
+PAGE LAYOUT:
+- Each entry has an English term on the LEFT and Arabic term on the RIGHT (bold)
+- The Arabic definition follows below
+- Some entries have sub-points marked with (أ), (ب), etc.
+- Cross-references appear as (انظر: term)
+
+Extract data as a JSON object with this structure:
+{{
+  "Arabic term (english term)": "Arabic term\\ndefinition...",
+  "مُناخ (climate)": "مُناخ\\nمتوسط حالة الجو على مدار فترة زمنية طويلة..."
+}}
+
+KEY FORMAT: "Arabic term (english term)"
+- Arabic term first, then English in parentheses
+- Preserve diacritics (تشكيل) on Arabic term
+
+VALUE FORMAT: "Arabic term\\ndefinition"
+- Start with the Arabic term
+- Then newline (\\n)
+- Then the full Arabic definition
+- Include all sub-points (أ), (ب) if present
+- Include cross-references like (انظر: Joint)
+
+HANDLING CONTINUATIONS:
+- If page starts mid-definition, use "__continuation__" as key
+
+Return only valid JSON object.
+""",
+
+    "math_english_arabic": """
+You are given page image(s) from "معجم الرياضيات" (Dictionary of Mathematics).
+
+{context_instruction}
+
+PAGE LAYOUT:
+- Two-column layout, RTL flow (read right column first, then left)
+- Each entry has an English term on the LEFT and Arabic term on the RIGHT (bold)
+- The Arabic definition follows below, often containing mathematical formulas
+
+Extract data as a JSON object with this structure:
+{{
+  "Arabic term (english term)": "Arabic term\\ndefinition with $LaTeX$...",
+  "متباينة آبل (Abel's inequality)": "متباينة آبل\\nإذا كان $s_n \\leq s_{{n+1}} < $ صفر لكل عدد..."
+}}
+
+KEY FORMAT: "Arabic term (english term)"
+- Arabic term first, then English in parentheses
+- Preserve diacritics (تشكيل) on Arabic term
+
+VALUE FORMAT: "Arabic term\\ndefinition"
+- Start with the Arabic term
+- Then newline (\\n)
+- Then the full Arabic definition
+
+MATHEMATICAL FORMULAS - USE LATEX:
+- Wrap ALL math expressions in $...$ (inline) or $$...$$ (display)
+- Summations: $\\sum_{{r=1}}^{{n}} a_r$
+- Fractions: $\\frac{{a}}{{b}}$
+- Subscripts: $x_n$, Superscripts: $x^2$
+- Greek letters: $\\alpha$, $\\beta$, $\\gamma$
+- Inequalities: $\\leq$, $\\geq$, $<$, $>$
+- Infinity: $\\infty$
+- Set notation: $\\in$, $\\subset$, $\\cup$, $\\cap$
+- Arrows: $\\rightarrow$, $\\Rightarrow$
+- Absolute value: $|x|$
+- Square root: $\\sqrt{{x}}$
+
+EXAMPLES:
+- "مجموع ل إذا كانت $\\sum_{{n=0}}^{{\\infty}} a_n s_n$ موجودة وتساوي ل"
+- "إذا كان $s_n \\leq s_{{n+1}} < $ صفر لكل عدد صحيح موجب ن"
+
+HANDLING CONTINUATIONS:
+- If page starts mid-definition, use "__continuation__" as key
+
+Return only valid JSON object.
+""",
+
     "arabic_poetry": """
 You are given page image(s) from "شرح المعلقات السبع" (Commentary on the Seven Mu'allaqat).
 
@@ -149,23 +258,29 @@ PAGE LAYOUT:
 - Header at TOP: "معلقة [poet name]" (e.g., معلقة لبيد بن ربيعة)
 - Verses numbered: ١ - ٢ - ٣ - (Arabic numerals with dash)
 - Each verse appears in BOLD/DISTINCT text on its own line
+- The verse has TWO HALVES (شطرين) separated by spaces
 - The explanation (شرح) follows below the verse in regular text
 
 Extract data as a JSON object:
 {{
-  "معلقة لبيد بن ربيعة. ١- عفت الديار": "عفا لازم ومتعد، يقال: عفت الريح المنزل...",
-  "معلقة لبيد بن ربيعة. ٢- فمدافع الريان": "المدافع: أماكن يندفع عنها الماء..."
+  "معلقة لبيد بن ربيعة. ١- عفت الديار": "عَفَتِ الدِّيَارُ مَحَلُّهَا فَمُقَامُهَا   بِمِنًى تَأَبَّدَ غَوْلُهَا فَرِجَامُهَا\\n\\nعفا لازم ومتعد، يقال: عفت الريح المنزل...",
+  "معلقة لبيد بن ربيعة. ٢- فمدافع الريان": "فَمَدَافِعُ الرَّيَّانِ عُرِّيَ رَسْمُهَا   خَلَقًا كَمَا ضَمِنَ الوُحِيَّ سِلامُهَا\\n\\nالمدافع: أماكن يندفع عنها الماء..."
 }}
 
 KEY FORMAT: "معلقة [poet name]. [number]- [first 2 words of verse]"
-VALUE: The full explanation text that follows the verse
+VALUE:
+  1. FIRST: The COMPLETE verse (البيت الكامل) with BOTH halves (الشطر الأول والشطر الثاني)
+  2. THEN: Two newlines (\\n\\n)
+  3. THEN: The explanation (الشرح) text
 
 CRITICAL:
 - Extract poet name from page header
 - Use Arabic numerals (١، ٢، ٣)
 - KEY has only FIRST 2 WORDS of the verse
-- VALUE is the complete شرح (explanation) for that verse
-- Preserve ALL diacritics (تشكيل)
+- VALUE MUST START with the FULL verse (both halves separated by spaces)
+- Then TWO newlines, then the explanation
+- Preserve ALL diacritics (تشكيل) - especially on the verse itself
+- The verse is typically in BOLD or distinct formatting
 
 HANDLING CONTINUATIONS:
 - If page starts mid-explanation, use "__continuation__" key
@@ -327,12 +442,13 @@ def process_single_batch(conn, cursor, args):
         # Upload file to OpenAI
         print("\nUploading to OpenAI...")
         with open(temp_path, 'rb') as f:
-            file_response = client.files.create(file=f, purpose='batch')
+            file_response = retry_on_error(client.files.create, file=f, purpose='batch')
         print(f"  File ID: {file_response.id}")
 
         # Create batch
         print("Creating batch...")
-        batch = client.batches.create(
+        batch = retry_on_error(
+            client.batches.create,
             input_file_id=file_response.id,
             endpoint="/v1/chat/completions",
             completion_window="24h"
@@ -367,7 +483,7 @@ def process_single_batch(conn, cursor, args):
                 print(f"   Check later with: python process_batch.py --status")
                 return True  # Still counts as processed, just not complete yet
 
-            batch = client.batches.retrieve(batch.id)
+            batch = retry_on_error(client.batches.retrieve, batch.id)
             completed = batch.request_counts.completed
             failed = batch.request_counts.failed
             total = batch.request_counts.total
@@ -399,7 +515,7 @@ def process_single_batch(conn, cursor, args):
         # Download and import results
         if batch.status == 'completed' and batch.output_file_id:
             print("\nDownloading results...")
-            content = client.files.content(batch.output_file_id)
+            content = retry_on_error(client.files.content, batch.output_file_id)
             results_data = content.read().decode('utf-8')
 
             success = 0
@@ -481,15 +597,10 @@ def process_batch(args):
             break
 
         # Show summary after each batch
-        cursor.execute('''
-            SELECT
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as done,
-                COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
-                COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
-            FROM jobs
-        ''')
-        done, pending, failed = cursor.fetchone()
-        print(f"\nOverall Progress: {done} done, {pending} pending, {failed} failed")
+        print_job_summary(cursor)
+
+        cursor.execute("SELECT COUNT(*) FROM jobs WHERE status = 'pending'")
+        pending = cursor.fetchone()[0]
 
         if pending == 0:
             print("\n✓ All jobs completed!")
@@ -528,7 +639,7 @@ def resume_batches(args):
 
     for batch_id, job_ids_json in batches:
         try:
-            batch = client.batches.retrieve(batch_id)
+            batch = retry_on_error(client.batches.retrieve, batch_id)
             print(f"\n{batch_id}: {batch.status} ({batch.request_counts.completed}/{batch.request_counts.total})")
 
             if batch.status == 'completed' and batch.output_file_id:
@@ -545,7 +656,7 @@ def resume_batches(args):
 
                 # Download and import
                 print("  Downloading results...")
-                content = client.files.content(batch.output_file_id)
+                content = retry_on_error(client.files.content, batch.output_file_id)
                 results_data = content.read().decode('utf-8')
 
                 success = failed = 0
@@ -606,14 +717,183 @@ def show_status(args):
                 # Check OpenAI status if not imported
                 if status != 'imported':
                     try:
-                        batch = client.batches.retrieve(batch_id)
+                        batch = retry_on_error(client.batches.retrieve, batch_id)
                         print(f"  {batch_id[:20]}... | {batch.status} | {batch.request_counts.completed}/{batch.request_counts.total}")
-                    except:
+                    except Exception:
                         print(f"  {batch_id[:20]}... | {status} (local)")
                 else:
                     print(f"  {batch_id[:20]}... | {status}")
 
-    # Job summary
+    print_job_summary(cursor)
+    conn.close()
+
+
+async def process_single_job_async(async_client, job: dict, db_path: str) -> tuple:
+    """Process a single job asynchronously. Returns (job_id, success, error)."""
+    job_id = job['id']
+    page_num = job['page_num']
+    folder_name = job['folder_name']
+    pdf_path = job['pdf_path']
+    context_pages = job['context_pages']
+    prompt_name = job['prompt_name']
+
+    try:
+        # Build request content
+        start_page = max(1, page_num - context_pages)
+        pages_to_send = list(range(start_page, page_num + 1))
+
+        base_prompt = PROMPTS.get(prompt_name, PROMPTS["arabic_only_with_diacritics"])
+        context_instruction = get_context_instruction(context_pages, page_num)
+        prompt = base_prompt.format(context_instruction=context_instruction)
+
+        content = [{"type": "text", "text": prompt}]
+
+        for i, p in enumerate(pages_to_send):
+            img_base64 = extract_page_image_base64(pdf_path, p)
+            is_current = (i == len(pages_to_send) - 1)
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{img_base64}",
+                    "detail": "high" if is_current else "low"
+                }
+            })
+
+        # Make async API call with retry
+        attempt = 0
+        while True:
+            try:
+                response = await async_client.chat.completions.create(
+                    model=MODEL,
+                    messages=[{"role": "user", "content": content}],
+                    reasoning_effort="low",
+                    temperature=1,
+                    max_completion_tokens=4096,
+                    response_format={"type": "json_object"}
+                )
+                break
+            except (APITimeoutError, APIConnectionError, InternalServerError) as e:
+                attempt += 1
+                wait_time = min(30 * attempt, 300)
+                print(f"\n  ⏳ {folder_name} p{page_num}: {type(e).__name__}, waiting {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            except APIStatusError as e:
+                if e.status_code >= 500:
+                    attempt += 1
+                    wait_time = min(30 * attempt, 300)
+                    print(f"\n  ⏳ {folder_name} p{page_num}: Server {e.status_code}, waiting {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+
+        result_text = response.choices[0].message.content
+
+        # Save result to DB
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE jobs SET status = ?, result_json = ?, completed_at = ?
+            WHERE id = ?
+        ''', ('completed', result_text, datetime.now(), job_id))
+        conn.commit()
+        conn.close()
+
+        return (job_id, folder_name, page_num, True, None)
+
+    except Exception as e:
+        # Save error to DB
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE jobs SET status = ?, error = ? WHERE id = ?',
+                      ('failed', str(e), job_id))
+        conn.commit()
+        conn.close()
+        return (job_id, folder_name, page_num, False, str(e))
+
+
+async def process_realtime_async(args):
+    """Process jobs using real-time API with parallel workers."""
+    conn = sqlite3.connect(args.db)
+    cursor = conn.cursor()
+
+    concurrent = args.concurrent if args.concurrent else 5
+    max_jobs = args.max_jobs if args.max_jobs else float('inf')
+
+    print("=" * 60)
+    print("REAL-TIME PARALLEL PROCESSING")
+    print("=" * 60)
+    print(f"Concurrent workers: {concurrent}")
+    print(f"Cost: 2x batch API (but instant results)")
+    print("=" * 60)
+
+    # Get all pending jobs
+    jobs = get_pending_jobs(conn, args.dict, limit=int(max_jobs) if max_jobs != float('inf') else None)
+    if not jobs:
+        print("\n✓ No pending jobs!")
+        conn.close()
+        return
+
+    print(f"Jobs to process: {len(jobs)}")
+
+    # Mark all as processing
+    job_ids = [j['id'] for j in jobs]
+    cursor.executemany('UPDATE jobs SET status = ? WHERE id = ?', [('processing', jid) for jid in job_ids])
+    conn.commit()
+    conn.close()
+
+    # Create async client
+    async_client = AsyncOpenAI()
+
+    # Process with worker pool
+    total = len(jobs)
+    completed = 0
+    success = 0
+    failed = 0
+
+    queue = asyncio.Queue()
+    for job in jobs:
+        await queue.put(job)
+
+    async def worker(worker_id: int):
+        nonlocal completed, success, failed
+        while True:
+            try:
+                job = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+
+            result = await process_single_job_async(async_client, job, args.db)
+            job_id, folder_name, page_num, ok, error = result
+
+            completed += 1
+            if ok:
+                success += 1
+                print(f"✓ [{completed}/{total}] {folder_name} p{page_num} | Done: {success}, Failed: {failed}")
+            else:
+                failed += 1
+                print(f"✗ [{completed}/{total}] {folder_name} p{page_num}: {error}")
+
+    # Start workers
+    workers = [asyncio.create_task(worker(i)) for i in range(concurrent)]
+    await asyncio.gather(*workers)
+
+    print("\n" + "=" * 60)
+    print(f"COMPLETE! Success: {success}, Failed: {failed}")
+
+    # Show final summary
+    conn = sqlite3.connect(args.db)
+    cursor = conn.cursor()
+    print_job_summary(cursor)
+    conn.close()
+
+
+def process_realtime(args):
+    """Wrapper to run async realtime processing."""
+    asyncio.run(process_realtime_async(args))
+
+
+def print_job_summary(cursor):
+    """Print job status summary table."""
     cursor.execute('''
         SELECT d.folder_name,
                COUNT(*) as total,
@@ -633,8 +913,6 @@ def show_status(args):
         folder, total, done, pending, failed, processing = row
         print(f"{folder:<25} {total:<8} {done:<8} {pending:<8} {failed:<8} {processing}")
 
-    conn.close()
-
 
 def main():
     parser = argparse.ArgumentParser(description='Process with OpenAI Batch API')
@@ -645,6 +923,9 @@ def main():
     parser.add_argument('--resume', action='store_true', help='Resume/import completed batches')
     parser.add_argument('--loop', action='store_true', help='Continue processing batches until done')
     parser.add_argument('--max-batches', type=int, help='Maximum number of batches to process')
+    parser.add_argument('--realtime', action='store_true', help='Use real-time API (faster, 2x cost)')
+    parser.add_argument('--max-jobs', type=int, help='Maximum number of jobs for realtime mode')
+    parser.add_argument('--concurrent', type=int, default=5, help='Number of parallel workers for realtime mode (default: 5)')
 
     args = parser.parse_args()
 
@@ -652,6 +933,8 @@ def main():
         show_status(args)
     elif args.resume:
         resume_batches(args)
+    elif args.realtime:
+        process_realtime(args)
     else:
         process_batch(args)
 

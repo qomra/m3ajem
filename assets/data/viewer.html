@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معاجم - عارض النتائج</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+
+        header select {
+            padding: 8px 15px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            background: white;
+            cursor: pointer;
+            min-width: 250px;
+        }
+
+        .stats {
+            margin-right: auto;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-box {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 15px;
+            font-size: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            direction: rtl;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .entries-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .entry-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .entry-item:hover {
+            background: #f8f9fa;
+        }
+
+        .entry-item.active {
+            background: #e3f2fd;
+            border-right: 3px solid #2196f3;
+        }
+
+        .entry-item .term {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .entry-item .preview {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+
+        .content .term-header {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .content .definition {
+            font-size: 1.2rem;
+            line-height: 2;
+            color: #333;
+            white-space: pre-wrap;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            font-size: 1.2rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>عارض المعاجم</h1>
+        <select id="dict-select">
+            <option value="">-- اختر معجماً --</option>
+        </select>
+        <div class="stats" id="stats"></div>
+    </header>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="search-box">
+                <input type="text" id="search" placeholder="ابحث عن مصطلح...">
+            </div>
+            <div class="entries-list" id="entries-list">
+                <div class="empty-state">اختر معجماً للبدء</div>
+            </div>
+        </div>
+        <div class="content" id="content">
+            <div class="empty-state">اختر مصطلحاً لعرض التعريف</div>
+        </div>
+    </div>
+
+    <script>
+        const MORAQMAN_DIR = 'maajim/moraqman/';
+        let currentDict = null;
+        let currentEntries = [];
+        let filteredEntries = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadDictionaries();
+
+            document.getElementById('dict-select').addEventListener('change', onDictChange);
+            document.getElementById('search').addEventListener('input', onSearch);
+        });
+
+        async function loadDictionaries() {
+            // Known dictionary names - JSON files are at maajim/moraqman/{name}/{name}.json
+            const knownDicts = [
+                'aami_faseeh',
+                'alfath_alhadarah',
+                'alqab',
+                'bala3a',
+                'chemestry_and_pharma',
+                'cs',
+                'eqtisad_islami',
+                'geography',
+                'hadith',
+                'hydrology',
+                'math',
+                'mechanical',
+                'medical_mojam_until_k',
+                'mo3allaqat',
+                'mojam_mostalahat_tibiya',
+                'mojam_mostalahat_tibya2',
+                'mojam_nabat',
+                'mostalahat_alqab_tareekhiya',
+                'mostalahat_zerayea',
+                'music',
+                'oil',
+                'philosophy',
+                'physica',
+                'physics2',
+                'qanoon',
+                'tarbiya',
+                'taree5'
+            ];
+
+            const available = [];
+            for (const name of knownDicts) {
+                try {
+                    // Files are at maajim/moraqman/{name}/{name}.json
+                    const response = await fetch(MORAQMAN_DIR + name + '/' + name + '.json', { method: 'HEAD' });
+                    if (response.ok) {
+                        available.push({ folder_name: name, name: name });
+                    }
+                } catch (e) {}
+            }
+
+            populateDictSelect(available);
+        }
+
+        function populateDictSelect(dicts) {
+            const select = document.getElementById('dict-select');
+            dicts.forEach(dict => {
+                const option = document.createElement('option');
+                option.value = dict.folder_name;
+                option.textContent = dict.name || dict.folder_name;
+                select.appendChild(option);
+            });
+        }
+
+        async function onDictChange(e) {
+            const dictName = e.target.value;
+            if (!dictName) {
+                currentDict = null;
+                currentEntries = [];
+                renderEntries([]);
+                document.getElementById('content').innerHTML = '<div class="empty-state">اختر معجماً للبدء</div>';
+                document.getElementById('stats').textContent = '';
+                return;
+            }
+
+            document.getElementById('entries-list').innerHTML = '<div class="loading">جاري التحميل...</div>';
+
+            try {
+                // Files are at maajim/moraqman/{name}/{name}.json
+                const response = await fetch(MORAQMAN_DIR + dictName + '/' + dictName + '.json');
+                currentDict = await response.json();
+
+                // Convert data object to array of entries
+                currentEntries = Object.entries(currentDict.data || {}).map(([term, definition]) => ({
+                    term,
+                    definition
+                }));
+
+                // Sort alphabetically
+                currentEntries.sort((a, b) => a.term.localeCompare(b.term, 'ar'));
+
+                document.getElementById('stats').textContent = `${currentEntries.length} مصطلح`;
+                document.getElementById('search').value = '';
+                filteredEntries = currentEntries;
+                renderEntries(filteredEntries);
+
+                // Show first entry
+                if (filteredEntries.length > 0) {
+                    showEntry(0);
+                }
+            } catch (err) {
+                document.getElementById('entries-list').innerHTML =
+                    `<div class="empty-state">خطأ في تحميل المعجم: ${err.message}</div>`;
+            }
+        }
+
+        function onSearch(e) {
+            const query = e.target.value.trim().toLowerCase();
+
+            if (!query) {
+                filteredEntries = currentEntries;
+            } else {
+                filteredEntries = currentEntries.filter(entry =>
+                    entry.term.toLowerCase().includes(query) ||
+                    entry.definition.toLowerCase().includes(query)
+                );
+            }
+
+            renderEntries(filteredEntries);
+        }
+
+        function renderEntries(entries) {
+            const list = document.getElementById('entries-list');
+
+            if (entries.length === 0) {
+                list.innerHTML = '<div class="empty-state">لا توجد نتائج</div>';
+                return;
+            }
+
+            list.innerHTML = entries.map((entry, index) => `
+                <div class="entry-item" data-index="${index}" onclick="showEntry(${index})">
+                    <div class="term">${escapeHtml(entry.term)}</div>
+                    <div class="preview">${escapeHtml(entry.definition.substring(0, 80))}...</div>
+                </div>
+            `).join('');
+        }
+
+        function showEntry(index) {
+            const entry = filteredEntries[index];
+            if (!entry) return;
+
+            // Update active state
+            document.querySelectorAll('.entry-item').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+            });
+
+            // Show definition
+            document.getElementById('content').innerHTML = `
+                <div class="term-header">${escapeHtml(entry.term)}</div>
+                <div class="definition">${escapeHtml(entry.definition)}</div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

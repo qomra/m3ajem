@@ -9,6 +9,7 @@ import { getFlexDirection } from '@/utils/rtl';
 
 interface GlobalSearchProps {
   onClose: () => void;
+  type?: 'lo3awi' | 'moraqman';
 }
 
 interface SearchResult {
@@ -16,26 +17,44 @@ interface SearchResult {
   dictionaryName: string;
 }
 
-export function GlobalSearch({ onClose }: GlobalSearchProps) {
+export function GlobalSearch({ onClose, type = 'lo3awi' }: GlobalSearchProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { dictionaries, searchRoot, loadDictionaries } = useDictionaryStore();
+  const {
+    dictionaries,
+    moraqmanDictionaries,
+    searchRoot,
+    searchMoraqmanRoot,
+    loadDictionaries,
+    loadMoraqmanDictionaries
+  } = useDictionaryStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilter, setShowFilter] = useState(false);
   const [selectedDictionaries, setSelectedDictionaries] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
 
+  // Use appropriate dictionaries based on type
+  const activeDictionaries = type === 'moraqman' ? moraqmanDictionaries : dictionaries;
+  const activeSearchFn = type === 'moraqman' ? searchMoraqmanRoot : searchRoot;
+  const activeRoute = type === 'moraqman' ? '/(tabs)/moraqman/root' : '/(tabs)/dictionaries/root';
+
   // Load dictionaries if not already loaded
   useEffect(() => {
-    if (dictionaries.length === 0) {
-      loadDictionaries();
+    if (type === 'moraqman') {
+      if (moraqmanDictionaries.length === 0) {
+        loadMoraqmanDictionaries();
+      }
+    } else {
+      if (dictionaries.length === 0) {
+        loadDictionaries();
+      }
     }
-  }, []);
+  }, [type]);
 
-  const dictionaryNames = useMemo(() => dictionaries.map(d => d.name), [dictionaries]);
+  const dictionaryNames = useMemo(() => activeDictionaries.map(d => d.name), [activeDictionaries]);
 
   // Search when query changes
   useEffect(() => {
@@ -45,7 +64,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
         return;
       }
 
-      const results = await searchRoot(searchQuery.trim());
+      const results = await activeSearchFn(searchQuery.trim());
 
       // Filter by selected dictionaries if any
       if (selectedDictionaries.length > 0) {
@@ -53,14 +72,14 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           results
             .filter(r => selectedDictionaries.includes(r.dictionary))
             .map(r => ({
-              root: searchQuery.trim(),
+              root: r.root || searchQuery.trim(),
               dictionaryName: r.dictionary,
             }))
         );
       } else {
         setSearchResults(
           results.map(r => ({
-            root: searchQuery.trim(),
+            root: r.root || searchQuery.trim(),
             dictionaryName: r.dictionary,
           }))
         );
@@ -68,7 +87,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     };
 
     performSearch();
-  }, [searchQuery, selectedDictionaries, searchRoot]);
+  }, [searchQuery, selectedDictionaries, activeSearchFn]);
 
   const handleClearSearch = () => {
     setSearchQuery('');
@@ -76,7 +95,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
 
   const handleResultPress = (result: SearchResult) => {
     router.push({
-      pathname: '/(tabs)/dictionaries/root',
+      pathname: activeRoute,
       params: {
         root: result.root,
         dictionaryName: result.dictionaryName,

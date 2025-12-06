@@ -47,6 +47,7 @@ export function MessageList({
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {messages.map((message) => (
         <ChatMessage key={message.id} message={message} onContextPress={onContextPress} />

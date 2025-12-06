@@ -90,7 +90,8 @@ interface DictionaryState {
   loadAllRoots: () => Promise<void>;
   loadAllWords: () => Promise<void>;
   getRootsForDictionary: (dictionaryName: string) => Promise<string[]>;
-  searchRoot: (root: string) => Promise<{ dictionary: string; definition: string }[]>;
+  searchRoot: (root: string) => Promise<{ dictionary: string; definition: string; root?: string }[]>;
+  searchMoraqmanRoot: (root: string) => Promise<{ dictionary: string; definition: string; root: string }[]>;
   searchRootInDictionary: (dictionaryName: string, root: string) => Promise<string | null>;
   getWordsForRoot: (rootId: number) => Promise<string[]>;
   setSortBy: (sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random') => void;
@@ -124,7 +125,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       // Check if we've already initialized the database
       const dbVersion = await AsyncStorage.getItem('@m3ajem/db_version');
-      const CURRENT_DB_VERSION = '9'; // Increment this when database structure changes
+      const CURRENT_DB_VERSION = '16'; // Increment this when database structure changes
 
       if (dbVersion !== CURRENT_DB_VERSION) {
         console.log('First launch - copying database...');
@@ -489,6 +490,35 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
       }));
     } catch (error) {
       console.error('Error searching root:', error);
+      return [];
+    }
+  },
+
+  // Search for a root across moraqman dictionaries only
+  searchMoraqmanRoot: async (root: string) => {
+    const { db } = get();
+    if (!db) {
+      console.error('Database not initialized');
+      return [];
+    }
+
+    try {
+      // Use LIKE for partial matching (keys contain Arabic and English)
+      const rows = await db.getAllAsync<{ dictionary_name: string; root: string; definition: string }>(`
+        SELECT d.name as dictionary_name, r.root, r.definition
+        FROM roots r
+        JOIN dictionaries d ON r.dictionary_id = d.id
+        WHERE r.root LIKE ? AND d.type = 'moraqman'
+        LIMIT 100
+      `, [`%${root}%`]);
+
+      return rows.map(row => ({
+        dictionary: row.dictionary_name,
+        definition: row.definition,
+        root: row.root,
+      }));
+    } catch (error) {
+      console.error('Error searching moraqman root:', error);
       return [];
     }
   },

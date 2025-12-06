@@ -36,6 +36,10 @@ def generate_variants(word: str) -> List[str]:
         variants.append('لل' + without_al)
         variants.append('وب' + without_al)
         variants.append('وك' + without_al)
+        variants.append('وس' + without_al)
+        variants.append('فل' + without_al)
+        variants.append('لك' + without_al)
+        variants.append('ول' + without_al)
 
     # Handle أ/ا prefix variants
     if word.startswith('أ') or word.startswith('ا'):
