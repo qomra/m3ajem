@@ -151,7 +151,6 @@ def generate_readme(df_dicts, df_roots, df_words, stats):
     readme = f"""---
 language:
 - ar
-license: cc-by-nc-4.0
 tags:
 - arabic
 - dictionary
@@ -280,10 +279,6 @@ digitized = roots[roots['dictionary_type'] == 'moraqman']
 ```
 
 ---
-
-## الترخيص
-
-هذه المجموعة منشورة تحت رخصة CC-BY-NC-4.0 (المشاع الإبداعي - نسب المصنف - غير تجاري 4.0).
 
 ## الاقتباس
 
