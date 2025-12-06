@@ -356,7 +356,7 @@ export default function SettingsScreen() {
   };
 
   const handleOpenAudioFolder = async () => {
-    const url = 'https://drive.google.com/drive/folders/YOUR_FOLDER_ID'; // TODO: Replace with actual folder ID
+    const url = 'https://drive.google.com/drive/folders/1aIVlLbrhxWjNJ_CsVV2BS4P9s4LqOeHD';
     const canOpen = await Linking.canOpenURL(url);
     if (canOpen) {
       await Linking.openURL(url);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, useTranslation } from '@hooks';
 
@@ -8,7 +8,7 @@ export function EmptyState() {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
+    <Pressable style={styles.container} onPress={Keyboard.dismiss}>
       <View style={[styles.iconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
         <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.primary} />
       </View>
@@ -16,7 +16,7 @@ export function EmptyState() {
       <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
         {t('smart.startConversation')}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 

@@ -1,11 +1,22 @@
-import { View, Text, StyleSheet, Pressable, FlatList, StatusBar, Animated } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, SectionList, StatusBar, Animated } from 'react-native';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
 import { DictionaryCard } from '@components/dictionaries/DictionaryCard';
 import { InfoModal } from '@components/modals/InfoModal';
 import { GlobalSearch } from '@components/dictionaries/GlobalSearch';
+import { MORAQMAN_CATEGORIES, CategoryKey } from '@/config/moraqmanCategories';
+
+interface DictionaryItem {
+  name: string;
+}
+
+interface Section {
+  key: CategoryKey;
+  title: string;
+  data: DictionaryItem[];
+}
 
 export default function MoraqmanList() {
   const theme = useTheme();
@@ -30,6 +41,23 @@ export default function MoraqmanList() {
   // Animation values
   const listScale = useRef(new Animated.Value(1)).current;
   const searchScale = useRef(new Animated.Value(0)).current;
+
+  // Organize dictionaries into sections by category
+  const sections = useMemo<Section[]>(() => {
+    if (moraqmanDictionaries.length === 0) return [];
+
+    const dictionaryNames = new Set(moraqmanDictionaries.map(d => d.name));
+
+    return MORAQMAN_CATEGORIES
+      .map(category => ({
+        key: category.key,
+        title: t(`moraqman.categories.${category.key}`),
+        data: category.dictionaries
+          .filter(name => dictionaryNames.has(name))
+          .map(name => ({ name })),
+      }))
+      .filter(section => section.data.length > 0);
+  }, [moraqmanDictionaries, t]);
 
   const handleShowSearch = () => {
     setShowSearch(true);
@@ -81,6 +109,16 @@ export default function MoraqmanList() {
 
   const isLoading = isLoadingMoraqmanDictionaries || isLoadingMoraqmanMetadata;
 
+  const renderSectionHeader = ({ section }: { section: Section }) => (
+    <View style={[styles.sectionHeader, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.sectionHeaderLine, { backgroundColor: theme.colors.border }]} />
+      <Text style={[styles.sectionHeaderText, { color: theme.colors.primary }]}>
+        {section.title}
+      </Text>
+      <View style={[styles.sectionHeaderLine, { backgroundColor: theme.colors.border }]} />
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
@@ -111,17 +149,18 @@ export default function MoraqmanList() {
           <View style={styles.centerContainer}>
             <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>{t('common.loading')}</Text>
           </View>
-        ) : moraqmanDictionaries.length === 0 ? (
+        ) : sections.length === 0 ? (
           <View style={styles.centerContainer}>
             <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
               {t('moraqman.noDictionaries')}
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={moraqmanDictionaries}
+          <SectionList
+            sections={sections}
             keyExtractor={item => item.name}
             keyboardShouldPersistTaps='handled'
+            renderSectionHeader={renderSectionHeader}
             renderItem={({ item }) => (
               <DictionaryCard
                 name={item.name}
@@ -132,6 +171,7 @@ export default function MoraqmanList() {
             )}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={false}
           />
         )}
       </Animated.View>
@@ -148,7 +188,7 @@ export default function MoraqmanList() {
             },
           ]}
         >
-          <GlobalSearch onClose={handleCloseSearch} />
+          <GlobalSearch onClose={handleCloseSearch} type="moraqman" />
         </Animated.View>
       )}
 
@@ -221,5 +261,20 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     zIndex: 100,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  sectionHeaderLine: {
+    flex: 1,
+    height: 1,
+  },
+  sectionHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 12,
   },
 });

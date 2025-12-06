@@ -125,7 +125,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     try {
       // Check if we've already initialized the database
       const dbVersion = await AsyncStorage.getItem('@m3ajem/db_version');
-      const CURRENT_DB_VERSION = '16'; // Increment this when database structure changes
+      const CURRENT_DB_VERSION = '18'; // Increment this when database structure changes
 
       if (dbVersion !== CURRENT_DB_VERSION) {
         console.log('First launch - copying database...');

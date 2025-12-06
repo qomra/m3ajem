@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation, useTheme } from '@hooks';
 import { useChatStore } from '@store/chatStore';
@@ -253,7 +253,7 @@ export default function SmartScreen() {
 
         {/* Show empty state when no auth configured */}
         {!hasAPIKey && !hasGatewayAuth && messages.length === 0 ? (
-          <View style={styles.emptyStateContainer}>
+          <Pressable style={styles.emptyStateContainer} onPress={Keyboard.dismiss}>
             <View style={styles.emptyStateContent}>
               <Ionicons name="chatbubbles-outline" size={64} color={theme.colors.textTertiary} />
               <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
@@ -283,7 +283,7 @@ export default function SmartScreen() {
                 </Text>
               </Pressable>
             </View>
-          </View>
+          </Pressable>
         ) : (
           <MessageList messages={messages} isLoading={isLoading} isSending={isSending} />
         )}

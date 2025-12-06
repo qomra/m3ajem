@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useTranslation } from '@hooks';
 import { useDictionaryStore } from '@store/dictionaryStoreSQLite';
+import { MathText } from '@components/common/MathText';
 
 export default function RootDetail() {
   const theme = useTheme();
@@ -76,12 +77,9 @@ export default function RootDetail() {
             <Text style={[styles.definitionLabel, { color: theme.colors.textSecondary, textAlign: 'right' }]}>
               {t('dictionaries.definition')}
             </Text>
-            <Text style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>
-              {definition.split('.').map((sentence, index, array) => {
-                const trimmed = sentence.trim();
-                return trimmed ? (index < array.length - 1 ? trimmed + '.\n\n' : trimmed) : '';
-              }).join('')}
-            </Text>
+            <MathText style={[styles.definitionText, { color: theme.colors.text, textAlign: 'right' }]}>
+              {definition}
+            </MathText>
           </View>
         </ScrollView>
       )}
