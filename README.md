@@ -100,11 +100,6 @@ m3ajem/
 - **FlashList** - قوائم عالية الأداء
 - **SQLite** - قاعدة بيانات محلية
 
-## التواصل
-
-- الموقع: [m3ajem.com](https://m3ajem.com)
-- البريد: support@m3ajem.com
-
 </div>
 
 ---
