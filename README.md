@@ -1,8 +1,121 @@
-# م3اجم (M3ajem) - Arabic Dictionary App
+<div dir="rtl">
 
-A comprehensive Arabic dictionary mobile application built with React Native and Expo.
+# مَعاجِم
 
-## 🚀 Quick Start
+تطبيق شامل للمعاجم العربية مبني بـ React Native و Expo.
+
+## نظرة عامة
+
+مَعاجِم هو تطبيق موبايل يجمع بين المعاجم العربية التقليدية والمعاجم المتخصصة المرقمنة بالذكاء الاصطناعي، مع إمكانية البحث المتقدم والاستماع الصوتي والمساعد الذكي.
+
+## المميزات
+
+- **المعاجم**: تصفح والبحث في 40 معجماً عربياً
+- **المفهرس**: البحث في الكلمات المفهرسة مع التجميع حسب الجذر
+- **صوتي**: الاستماع لتسجيلات صوتية لمداخل المعاجم
+- **ذكي**: مساعد ذكي مدعوم بالذكاء الاصطناعي
+- **الإعدادات**: تخصيص المظهر وحجم الخط وإعدادات التطبيق
+
+## الإحصائيات
+
+| النوع | عدد المعاجم | عدد المدخلات |
+|-------|-------------|--------------|
+| مطبوع | 14 | 111,428 |
+| مرقمنة | 26 | 95,582 |
+| **المجموع** | **40** | **207,010** |
+
+بالإضافة إلى **281,134** كلمة مفهرسة في لسان العرب.
+
+## المعاجم المتوفرة
+
+### المعاجم المطبوعة
+- لسان العرب (مفهرس)
+- الصحاح في اللغة
+- مختار الصحاح
+- المعجم الوسيط
+- القاموس المحيط
+- الغريب المصنف
+- أساس البلاغة
+- مجمل اللغة لابن فارس
+- العين للفراهيدي
+- النهاية في غريب الحديث
+- معجم ديوان الأدب
+- شرح المعلقات السبع
+- وغيرها...
+
+### المعاجم المرقمنة (بالذكاء الاصطناعي)
+- معجم مصطلحات الحاسوب
+- معجم مصطلحات الطب
+- معجم مصطلحات الفيزياء
+- معجم مصطلحات الكيمياء
+- معجم مصطلحات الرياضيات
+- معجم مصطلحات القانون
+- معجم مصطلحات الاقتصاد
+- معجم مصطلحات علم النفس
+- معجم مصطلحات الفلسفة
+- معجم مصطلحات الموسيقى
+- وغيرها...
+
+## البيانات
+
+بيانات المعاجم متوفرة بصيغة Hugging Face Dataset:
+
+```
+hf_dataset/
+├── dictionaries.parquet  (0.01 MB)
+├── roots.parquet         (67.87 MB)
+├── words.parquet         (6.22 MB)
+└── README.md
+```
+
+## هيكل المشروع
+
+```
+m3ajem/
+├── app/                  # صفحات Expo Router
+│   ├── (tabs)/          # شاشات التنقل
+│   └── _layout.tsx      # التخطيط الرئيسي
+├── src/
+│   ├── components/      # مكونات واجهة المستخدم
+│   ├── screens/         # شاشات التطبيق
+│   ├── hooks/           # React Hooks مخصصة
+│   ├── store/           # إدارة الحالة (Zustand)
+│   ├── locales/         # الترجمات (ar.json)
+│   ├── theme/           # نظام المظهر
+│   ├── types/           # أنواع TypeScript
+│   ├── services/        # منطق الأعمال
+│   └── utils/           # دوال مساعدة
+├── assets/              # الملفات الثابتة
+│   └── data/            # بيانات المعاجم
+└── docs/                # التوثيق
+```
+
+## التقنيات المستخدمة
+
+- **React Native** - إطار تطوير الموبايل
+- **Expo** - منصة التطوير
+- **TypeScript** - أمان الأنواع
+- **Zustand** - إدارة الحالة
+- **Expo Router** - التوجيه المبني على الملفات
+- **FlashList** - قوائم عالية الأداء
+- **SQLite** - قاعدة بيانات محلية
+
+## الترخيص
+
+CC-BY-NC-4.0 (المشاع الإبداعي - نسب المصنف - غير تجاري 4.0)
+
+## التواصل
+
+- الموقع: [m3ajem.com](https://m3ajem.com)
+- البريد: support@m3ajem.com
+
+</div>
+
+---
+
+## iOS Build Instructions
+
+### Quick Start
 
 ```bash
 # Install dependencies
@@ -18,127 +131,15 @@ npm run ios
 npm run android
 ```
 
-## 📱 Features
+### iOS Build Process
 
-- **المعاجم (Dictionaries)**: Browse and search across 8 Arabic dictionaries
-- **المفهرس (Indexed)**: Search indexed words with root grouping
-- **صوتي (Audio)**: Audio playback for dictionary entries
-- **ذكي (Smart)**: AI-powered chat assistant
-- **الإعدادات (Settings)**: Theme, font size, and app configuration
-
-## 🏗️ Project Structure
-
-```
-m3ajem/
-├── app/                  # Expo Router pages
-│   ├── (tabs)/          # Tab navigation screens
-│   └── _layout.tsx      # Root layout
-├── src/
-│   ├── components/      # Reusable UI components
-│   ├── screens/         # Screen components
-│   ├── hooks/           # Custom React hooks
-│   ├── store/           # Zustand state management
-│   ├── locales/         # i18n translations (ar.json)
-│   ├── theme/           # Theme system
-│   ├── types/           # TypeScript types
-│   ├── services/        # Business logic
-│   └── utils/           # Utility functions
-├── assets/              # Static assets
-│   └── data/            # Dictionary data
-└── docs/                # Documentation
-    ├── GUIDELINES.md    # Development guidelines
-    ├── ARCHITECTURE.md  # Architecture decisions
-    └── SETUP.md         # Setup instructions
-```
-
-## 📖 Documentation
-
-- **[GUIDELINES.md](docs/GUIDELINES.md)** - Development rules and best practices
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical architecture
-- **[SETUP.md](docs/SETUP.md)** - Detailed setup guide
-- **[CLAUDE.md](CLAUDE.md)** - Quick reference for AI agents
-
-## 🎨 Tech Stack
-
-- **React Native** - Mobile framework
-- **Expo** - Development platform
-- **TypeScript** - Type safety
-- **Zustand** - State management
-- **Expo Router** - File-based routing
-- **FlashList** - High-performance lists
-
-## 🌐 Internationalization
-
-All text is stored in `src/locales/ar.json`. No hardcoded text in components!
-
-```typescript
-// ✅ CORRECT
-const { t } = useTranslation();
-<Text>{t('common.search')}</Text>
-
-// ❌ WRONG
-<Text>ابحث</Text>
-```
-
-## 🎨 Theme System
-
-All colors come from the theme system. No hardcoded colors!
-
-```typescript
-// ✅ CORRECT
-const { colors } = useTheme();
-<View style={{ backgroundColor: colors.background }} />
-
-// ❌ WRONG
-<View style={{ backgroundColor: '#ffffff' }} />
-```
-
-## 📊 Data
-
-Dictionary data is stored in `assets/data/optimized/`:
-- `maajem-optimized.json.gz` (18.89 MB) - 8 dictionaries
-- `index-optimized.json.gz` (1.04 MB) - Indexed words
-- `search-index.json.gz` (6.00 MB) - Pre-built search indexes
-
-Total bundle: **~26 MB**
-
-## 🚦 Development Status
-
-✅ Project initialized
-✅ Folder structure created
-✅ Theme system implemented
-✅ i18n system implemented
-✅ Base navigation working
-⏳ Tab 1: المعاجم (in development)
-⏳ Tab 2: المفهرس (pending)
-⏳ Tab 3: صوتي (pending)
-⏳ Tab 4: ذكي (pending)
-⏳ Tab 5: الإعدادات (pending)
-
-## 🛠️ Scripts
+For iOS development, use the automated build script:
 
 ```bash
-npm start                   # Start Expo dev server
-npm run android             # Run on Android
-npm run ios                 # Run on iOS
-npm run web                 # Run on web
-npm run build:ios           # Build iOS (Debug) + configure signing + open Xcode
-npm run build:ios-release   # Build iOS (Release) + configure signing + open Xcode
-npm run build:ios-no-xcode  # Build iOS without opening Xcode
-npm run lint                # Lint code
-npm run lint:fix            # Fix linting issues
-npm run type-check          # TypeScript type checking
-```
-
-### 🍎 iOS Build Process
-
-For iOS development, use the automated build script instead of manual prebuild:
-
-```bash
-# Debug build (default, for development)
+# Debug build (for development)
 npm run build:ios
 
-# Release build (optimized, for testing production builds)
+# Release build (for production testing)
 npm run build:ios-release
 ```
 
@@ -152,23 +153,32 @@ This script automatically:
 7. Sets up Xcode schemes
 8. Opens Xcode workspace
 
-Then in Xcode:
+### In Xcode
+
 1. **Set your Development Team** (Signing & Capabilities tab)
 2. Select your device/simulator
 3. For Release builds: Edit Scheme → Run → Build Configuration → Release
 4. Click Run (⌘R)
 5. Test on device
 
-**Note:** The first time you build, you'll need to set your Apple Developer Team in Xcode under the "Signing & Capabilities" tab. The script configures automatic signing, so Xcode will handle provisioning profiles automatically.
+**Note:** The first time you build, you'll need to set your Apple Developer Team in Xcode under the "Signing & Capabilities" tab.
 
-## 📝 License
+### Available Scripts
 
-[Add license here]
+```bash
+npm start                   # Start Expo dev server
+npm run android             # Run on Android
+npm run ios                 # Run on iOS
+npm run build:ios           # Build iOS (Debug)
+npm run build:ios-release   # Build iOS (Release)
+npm run lint                # Lint code
+npm run type-check          # TypeScript type checking
+```
 
-## 👨‍💻 Contributing
+### TestFlight / App Store
 
-See [GUIDELINES.md](docs/GUIDELINES.md) for development guidelines.
-
-## 📞 Support
-
-[Add contact/support information]
+1. In Xcode: Product → Archive
+2. Window → Organizer
+3. Distribute App → App Store Connect
+4. Upload to App Store Connect
+5. In App Store Connect: TestFlight → Manage Compliance → Start Internal Testing
