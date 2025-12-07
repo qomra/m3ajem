@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: "معاجم",
+    name: "المعجم",
     slug: "m3ajem",
     owner: "jalalirsh",
     version: "1.0.0",
@@ -32,7 +32,8 @@ module.exports = {
               "com.googleusercontent.apps.865313393887-8d4jvuj4i85p53g5149ln400adfupe21"
             ]
           }
-        ]
+        ],
+        UIBackgroundModes: ["audio"]
       }
     },
     android: {

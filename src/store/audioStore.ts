@@ -73,6 +73,26 @@ const completedDownloads = new Set<string>();
 // Track which word is currently in initial load to prevent flicker from status callbacks
 let loadingWord: string | null = null;
 
+// Track if audio mode has been configured
+let audioModeConfigured = false;
+
+// Configure audio mode for background playback
+async function configureAudioMode() {
+  if (audioModeConfigured) return;
+
+  try {
+    await Audio.setAudioModeAsync({
+      staysActiveInBackground: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+    audioModeConfigured = true;
+  } catch (error) {
+    console.error('Error configuring audio mode:', error);
+  }
+}
+
 export const useAudioStore = create<AudioState>((set, get) => ({
   audioMap: audioMapData as Record<string, AudioFile>,
   availableRoots: [], // Will be set from dictionaryStore
@@ -103,8 +123,36 @@ export const useAudioStore = create<AudioState>((set, get) => ({
 
       if (filesListInfo.exists) {
         const content = await FileSystem.readAsStringAsync(filesListPath);
-        const downloadedFiles = JSON.parse(content);
-        set({ downloadedFiles });
+        const savedFiles = JSON.parse(content) as Record<string, DownloadedFile>;
+
+        // Verify each file still exists and fix paths if needed
+        const validFiles: Record<string, DownloadedFile> = {};
+        let hasInvalidFiles = false;
+
+        for (const [word, file] of Object.entries(savedFiles)) {
+          // Use current AUDIO_DIR path (handles container ID changes)
+          const currentPath = `${AUDIO_DIR}${word}.mp3`;
+          const fileInfo = await FileSystem.getInfoAsync(currentPath);
+
+          if (fileInfo.exists) {
+            // File exists - update path to current container path
+            validFiles[word] = {
+              ...file,
+              localUri: currentPath,
+            };
+          } else {
+            // File doesn't exist - mark for cleanup
+            hasInvalidFiles = true;
+            console.log(`[Audio] Removing invalid entry: ${word} (file not found)`);
+          }
+        }
+
+        // Save cleaned list if we removed any invalid entries
+        if (hasInvalidFiles) {
+          await FileSystem.writeAsStringAsync(filesListPath, JSON.stringify(validFiles));
+        }
+
+        set({ downloadedFiles: validFiles });
       }
     } catch (error) {
       console.error('Error loading downloaded files:', error);
@@ -287,6 +335,9 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   playAudio: async (word: string) => {
+    // Ensure audio mode is configured for background playback
+    await configureAudioMode();
+
     const { sound: currentSound, currentWord, isPlaying, downloadedFiles, audioMap } = get();
 
     // If same word and already playing, do nothing
@@ -337,13 +388,33 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     });
 
     try {
-      // Use downloaded file if available, otherwise stream
+      // Use downloaded file if available and exists, otherwise stream
       const downloadedFile = downloadedFiles[word];
-      const audioSource = downloadedFile
-        ? { uri: downloadedFile.localUri }
-        : { uri: audioMap[word]?.url };
+      let audioSource: { uri: string } | null = null;
 
-      if (!audioSource.uri) {
+      if (downloadedFile) {
+        // Verify the local file still exists
+        const fileInfo = await FileSystem.getInfoAsync(downloadedFile.localUri);
+        if (fileInfo.exists) {
+          audioSource = { uri: downloadedFile.localUri };
+        } else {
+          // File doesn't exist anymore - remove from downloaded list
+          console.log(`[Audio] Local file missing for ${word}, falling back to stream`);
+          const newDownloadedFiles = { ...downloadedFiles };
+          delete newDownloadedFiles[word];
+          set({ downloadedFiles: newDownloadedFiles });
+          // Save updated list
+          const filesListPath = `${AUDIO_DIR}downloaded.json`;
+          await FileSystem.writeAsStringAsync(filesListPath, JSON.stringify(newDownloadedFiles));
+        }
+      }
+
+      // Fall back to streaming if no local file
+      if (!audioSource && audioMap[word]?.url) {
+        audioSource = { uri: audioMap[word].url };
+      }
+
+      if (!audioSource) {
         console.error(`No audio source for word: ${word}`);
         set({ isPlaying: false, currentWord: null });
         loadingWord = null;
