@@ -58,14 +58,28 @@
 
 ## البيانات
 
-بيانات المعاجم متوفرة بصيغة Hugging Face Dataset:
+بيانات المعاجم متوفرة على Hugging Face:
+
+**[mysamai/m3ajim](https://huggingface.co/datasets/mysamai/m3ajim)**
 
 ```
-hf_dataset/
 ├── dictionaries.parquet  (0.01 MB)
 ├── roots.parquet         (67.87 MB)
-├── words.parquet         (6.22 MB)
-└── README.md
+└── words.parquet         (6.22 MB)
+```
+
+### تحويل البيانات
+
+```bash
+# تحميل من Hugging Face وإنشاء قاعدة البيانات
+cd assets/data
+python hf_to_db.py
+
+# أو من ملفات محلية
+python hf_to_db.py --local ./hf_dataset
+
+# تصدير قاعدة البيانات إلى Hugging Face
+python export_huggingface.py
 ```
 
 ## هيكل المشروع

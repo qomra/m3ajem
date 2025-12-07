@@ -13,8 +13,9 @@ Admin dashboard to monitor database and API status.
 ## Railway Deployment
 
 1. Create a new service in Railway
-2. Set root directory to `/admin`
-3. Set the following environment variables:
+2. Connect your GitHub repo
+3. Set root directory to `admin`
+4. Set the following environment variables:
 
 ```env
 DATABASE_URL=<same as main server>

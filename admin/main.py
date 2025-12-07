@@ -19,10 +19,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database connection - reuse from server
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'server'))
-
+# Database connection (standalone - no server dependencies)
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
