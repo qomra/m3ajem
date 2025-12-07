@@ -222,6 +222,56 @@ async def get_stats_data() -> dict:
         db.close()
 
 
+async def get_openai_usage() -> dict:
+    """Get OpenAI billing and usage information"""
+    if not OPENAI_API_KEY:
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+
+            # Get subscription info (credit balance)
+            sub_response = await client.get(
+                "https://api.openai.com/v1/dashboard/billing/subscription",
+                headers=headers
+            )
+
+            # Get usage for current month
+            today = datetime.utcnow()
+            start_date = today.replace(day=1).strftime("%Y-%m-%d")
+            end_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+
+            usage_response = await client.get(
+                f"https://api.openai.com/v1/dashboard/billing/usage?start_date={start_date}&end_date={end_date}",
+                headers=headers
+            )
+
+            result = {}
+
+            if sub_response.status_code == 200:
+                sub_data = sub_response.json()
+                result['hard_limit_usd'] = sub_data.get('hard_limit_usd', 0)
+                result['soft_limit_usd'] = sub_data.get('soft_limit_usd', 0)
+                result['plan'] = sub_data.get('plan', {}).get('title', 'Unknown')
+
+            if usage_response.status_code == 200:
+                usage_data = usage_response.json()
+                # total_usage is in cents
+                result['used_usd'] = usage_data.get('total_usage', 0) / 100
+                result['daily_costs'] = usage_data.get('daily_costs', [])[-7:]  # Last 7 days
+
+            if result:
+                if 'hard_limit_usd' in result and 'used_usd' in result:
+                    result['remaining_usd'] = result['hard_limit_usd'] - result['used_usd']
+                return result
+
+    except Exception as e:
+        logger.error(f"Error fetching OpenAI usage: {e}")
+
+    return None
+
+
 async def check_api_credits() -> dict:
     """Check API provider status and credits"""
     results = {}
@@ -272,7 +322,7 @@ async def check_api_credits() -> dict:
     return results
 
 
-def generate_dashboard_html(stats: dict, api_status: dict) -> str:
+def generate_dashboard_html(stats: dict, api_status: dict, openai_usage: dict = None) -> str:
     """Generate modern dashboard HTML"""
 
     error_banner = ""
@@ -280,6 +330,38 @@ def generate_dashboard_html(stats: dict, api_status: dict) -> str:
         error_banner = f"""
         <div class="error-banner">
             <strong>Database Error:</strong> {stats['error']}
+        </div>
+        """
+
+    # OpenAI usage card
+    openai_card = ""
+    if openai_usage:
+        used = openai_usage.get('used_usd', 0)
+        limit = openai_usage.get('hard_limit_usd', 0)
+        remaining = openai_usage.get('remaining_usd', 0)
+        plan = openai_usage.get('plan', 'Unknown')
+        percentage = (used / limit * 100) if limit > 0 else 0
+
+        # Color based on usage
+        bar_color = '#4ade80' if percentage < 50 else '#facc15' if percentage < 80 else '#f87171'
+
+        openai_card = f"""
+        <div class="card openai-card">
+            <h2>💰 رصيد OpenAI</h2>
+            <div class="credit-info">
+                <div class="credit-plan">{plan}</div>
+                <div class="credit-numbers">
+                    <span class="credit-used">${used:.2f}</span>
+                    <span class="credit-separator">/</span>
+                    <span class="credit-limit">${limit:.2f}</span>
+                </div>
+                <div class="credit-bar-container">
+                    <div class="credit-bar" style="width: {percentage:.1f}%; background: {bar_color};"></div>
+                </div>
+                <div class="credit-remaining">
+                    المتبقي: <strong>${remaining:.2f}</strong> ({100-percentage:.1f}%)
+                </div>
+            </div>
         </div>
         """
 
@@ -498,6 +580,53 @@ def generate_dashboard_html(stats: dict, api_status: dict) -> str:
                 position: relative;
                 height: 200px;
             }}
+            .openai-card {{
+                background: linear-gradient(135deg, rgba(16, 163, 127, 0.1) 0%, rgba(16, 163, 127, 0.05) 100%);
+                border: 1px solid rgba(16, 163, 127, 0.3);
+            }}
+            .credit-info {{
+                text-align: center;
+            }}
+            .credit-plan {{
+                color: #10a37f;
+                font-size: 0.9em;
+                margin-bottom: 15px;
+            }}
+            .credit-numbers {{
+                font-size: 2em;
+                margin-bottom: 15px;
+            }}
+            .credit-used {{
+                color: #f87171;
+                font-weight: 700;
+            }}
+            .credit-separator {{
+                color: #666;
+                margin: 0 8px;
+            }}
+            .credit-limit {{
+                color: #4ade80;
+                font-weight: 700;
+            }}
+            .credit-bar-container {{
+                background: rgba(255,255,255,0.1);
+                border-radius: 10px;
+                height: 20px;
+                overflow: hidden;
+                margin-bottom: 15px;
+            }}
+            .credit-bar {{
+                height: 100%;
+                border-radius: 10px;
+                transition: width 0.5s ease;
+            }}
+            .credit-remaining {{
+                color: #888;
+                font-size: 1.1em;
+            }}
+            .credit-remaining strong {{
+                color: #4ade80;
+            }}
             footer {{
                 text-align: center;
                 padding: 30px 0;
@@ -522,6 +651,8 @@ def generate_dashboard_html(stats: dict, api_status: dict) -> str:
             </header>
 
             {error_banner}
+
+            {openai_card}
 
             <div class="stats-grid">
                 <div class="stat-card">
@@ -584,7 +715,7 @@ def generate_dashboard_html(stats: dict, api_status: dict) -> str:
                     </table>
                 </div>
                 <div class="card">
-                    <h2>🕐 آخر المحادثات</h2>
+                    <h2>🕐 آخر المحادثات <a href="/conversations" style="font-size: 0.7em; color: #667eea; margin-right: 10px;">عرض الكل ←</a></h2>
                     <table>
                         <tr>
                             <th>المعرف</th>
@@ -693,7 +824,8 @@ async def dashboard(username: str = Depends(verify_credentials)):
     """Main dashboard - HTML view"""
     stats = await get_stats_data()
     api_status = await check_api_credits()
-    return generate_dashboard_html(stats, api_status)
+    openai_usage = await get_openai_usage()
+    return generate_dashboard_html(stats, api_status, openai_usage)
 
 
 @app.get("/api/stats")
@@ -706,6 +838,330 @@ async def api_stats(username: str = Depends(verify_credentials)):
 async def api_health(username: str = Depends(verify_credentials)):
     """JSON API for API health"""
     return await check_api_credits()
+
+
+@app.get("/api/openai-usage")
+async def api_openai_usage(username: str = Depends(verify_credentials)):
+    """JSON API for OpenAI credit usage"""
+    usage = await get_openai_usage()
+    if usage:
+        return usage
+    return {"error": "Could not fetch OpenAI usage data"}
+
+
+@app.get("/conversations", response_class=HTMLResponse)
+async def conversations_page(
+    username: str = Depends(verify_credentials),
+    page: int = 1,
+    per_page: int = 20
+):
+    """Paginated conversations list"""
+    if db_error or not SessionLocal:
+        return HTMLResponse(content="<h1>Database not connected</h1>", status_code=500)
+
+    db = SessionLocal()
+    try:
+        # Get total count
+        total = db.execute(text("SELECT COUNT(*) FROM conversations")).scalar() or 0
+        total_pages = (total + per_page - 1) // per_page
+
+        # Get conversations with message count
+        offset = (page - 1) * per_page
+        conversations = db.execute(text("""
+            SELECT c.id, c.provider, c.created_at, COUNT(m.id) as msg_count,
+                   (SELECT content FROM messages WHERE conversation_id = c.id AND role = 'user' ORDER BY timestamp LIMIT 1) as first_message
+            FROM conversations c
+            LEFT JOIN messages m ON c.id = m.conversation_id
+            GROUP BY c.id, c.provider, c.created_at
+            ORDER BY c.created_at DESC
+            LIMIT :limit OFFSET :offset
+        """), {"limit": per_page, "offset": offset}).fetchall()
+
+        rows = ""
+        for conv in conversations:
+            first_msg = conv[4][:80] + "..." if conv[4] and len(conv[4]) > 80 else (conv[4] or "-")
+            created = conv[2].strftime('%Y-%m-%d %H:%M') if conv[2] else '-'
+            rows += f"""
+            <tr onclick="window.location='/conversation/{conv[0]}'" style="cursor: pointer;">
+                <td><code>{str(conv[0])[:12]}...</code></td>
+                <td><span class="badge badge-{conv[1]}">{conv[1]}</span></td>
+                <td>{conv[3]}</td>
+                <td>{created}</td>
+                <td class="first-msg">{first_msg}</td>
+            </tr>
+            """
+
+        # Pagination
+        pagination = ""
+        if total_pages > 1:
+            pagination = '<div class="pagination">'
+            if page > 1:
+                pagination += f'<a href="/conversations?page={page-1}">السابق</a>'
+            pagination += f'<span>صفحة {page} من {total_pages}</span>'
+            if page < total_pages:
+                pagination += f'<a href="/conversations?page={page+1}">التالي</a>'
+            pagination += '</div>'
+
+        html = f"""
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>المحادثات - M3ajem Admin</title>
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    min-height: 100vh;
+                    color: #e0e0e0;
+                    padding: 20px;
+                }}
+                .container {{ max-width: 1400px; margin: 0 auto; }}
+                header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                }}
+                h1 {{ color: #fff; }}
+                .back-btn {{
+                    background: rgba(255,255,255,0.1);
+                    color: #fff;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                }}
+                .back-btn:hover {{ background: rgba(255,255,255,0.2); }}
+                .card {{
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 16px;
+                    padding: 24px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }}
+                table {{ width: 100%; border-collapse: collapse; }}
+                th, td {{ padding: 12px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05); }}
+                th {{ color: #888; font-weight: 600; }}
+                tr:hover {{ background: rgba(255,255,255,0.05); }}
+                .badge {{
+                    display: inline-block;
+                    padding: 4px 10px;
+                    border-radius: 20px;
+                    font-size: 0.8em;
+                    font-weight: 600;
+                }}
+                .badge-openai {{ background: rgba(16, 163, 127, 0.2); color: #10a37f; }}
+                .badge-anthropic {{ background: rgba(204, 147, 102, 0.2); color: #cc9366; }}
+                .badge-groq {{ background: rgba(244, 114, 182, 0.2); color: #f472b6; }}
+                .badge-google {{ background: rgba(66, 133, 244, 0.2); color: #4285f4; }}
+                code {{ background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
+                .first-msg {{ color: #888; font-size: 0.9em; max-width: 300px; }}
+                .pagination {{
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    margin-top: 20px;
+                }}
+                .pagination a {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                }}
+                .pagination span {{ color: #888; }}
+                .total {{ color: #888; margin-bottom: 15px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <header>
+                    <h1>📝 المحادثات ({total})</h1>
+                    <a href="/" class="back-btn">← العودة للوحة التحكم</a>
+                </header>
+                <div class="card">
+                    <table>
+                        <tr>
+                            <th>المعرف</th>
+                            <th>المزود</th>
+                            <th>الرسائل</th>
+                            <th>التاريخ</th>
+                            <th>أول رسالة</th>
+                        </tr>
+                        {rows}
+                    </table>
+                    {pagination}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+    finally:
+        db.close()
+
+
+@app.get("/conversation/{conversation_id}", response_class=HTMLResponse)
+async def conversation_detail(
+    conversation_id: str,
+    username: str = Depends(verify_credentials)
+):
+    """View single conversation with all messages"""
+    if db_error or not SessionLocal:
+        return HTMLResponse(content="<h1>Database not connected</h1>", status_code=500)
+
+    db = SessionLocal()
+    try:
+        # Get conversation
+        conv = db.execute(text("""
+            SELECT id, provider, created_at FROM conversations WHERE id = :id
+        """), {"id": conversation_id}).fetchone()
+
+        if not conv:
+            return HTMLResponse(content="<h1>Conversation not found</h1>", status_code=404)
+
+        # Get messages
+        messages = db.execute(text("""
+            SELECT role, content, timestamp FROM messages
+            WHERE conversation_id = :id
+            ORDER BY timestamp ASC
+        """), {"id": conversation_id}).fetchall()
+
+        messages_html = ""
+        for msg in messages:
+            role = msg[0]
+            content = msg[1] or "[No content]"
+            timestamp = msg[2].strftime('%H:%M:%S') if msg[2] else ''
+
+            role_class = "user" if role == "user" else "assistant"
+            role_label = "👤 المستخدم" if role == "user" else "🤖 المساعد"
+
+            # Escape HTML and preserve newlines
+            content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            content = content.replace("\n", "<br>")
+
+            messages_html += f"""
+            <div class="message {role_class}">
+                <div class="message-header">
+                    <span class="role">{role_label}</span>
+                    <span class="time">{timestamp}</span>
+                </div>
+                <div class="message-content">{content}</div>
+            </div>
+            """
+
+        created = conv[2].strftime('%Y-%m-%d %H:%M') if conv[2] else '-'
+
+        html = f"""
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>محادثة - M3ajem Admin</title>
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                    min-height: 100vh;
+                    color: #e0e0e0;
+                    padding: 20px;
+                }}
+                .container {{ max-width: 900px; margin: 0 auto; }}
+                header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 20px;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                }}
+                h1 {{ color: #fff; font-size: 1.3em; }}
+                .back-btn {{
+                    background: rgba(255,255,255,0.1);
+                    color: #fff;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                }}
+                .back-btn:hover {{ background: rgba(255,255,255,0.2); }}
+                .meta {{
+                    background: rgba(255,255,255,0.05);
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                    display: flex;
+                    gap: 30px;
+                }}
+                .meta-item {{ color: #888; }}
+                .meta-item strong {{ color: #fff; }}
+                .badge {{
+                    display: inline-block;
+                    padding: 4px 10px;
+                    border-radius: 20px;
+                    font-size: 0.8em;
+                    font-weight: 600;
+                }}
+                .badge-openai {{ background: rgba(16, 163, 127, 0.2); color: #10a37f; }}
+                .badge-anthropic {{ background: rgba(204, 147, 102, 0.2); color: #cc9366; }}
+                .badge-groq {{ background: rgba(244, 114, 182, 0.2); color: #f472b6; }}
+                .badge-google {{ background: rgba(66, 133, 244, 0.2); color: #4285f4; }}
+                .messages {{ display: flex; flex-direction: column; gap: 15px; }}
+                .message {{
+                    padding: 15px 20px;
+                    border-radius: 12px;
+                    max-width: 85%;
+                }}
+                .message.user {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    align-self: flex-start;
+                }}
+                .message.assistant {{
+                    background: rgba(255,255,255,0.1);
+                    align-self: flex-end;
+                }}
+                .message-header {{
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 8px;
+                    font-size: 0.85em;
+                }}
+                .role {{ font-weight: 600; }}
+                .time {{ color: rgba(255,255,255,0.6); }}
+                .message-content {{
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <header>
+                    <h1>💬 محادثة</h1>
+                    <a href="/conversations" class="back-btn">← العودة للمحادثات</a>
+                </header>
+                <div class="meta">
+                    <div class="meta-item">المعرف: <strong><code>{conv[0][:20]}...</code></strong></div>
+                    <div class="meta-item">المزود: <span class="badge badge-{conv[1]}">{conv[1]}</span></div>
+                    <div class="meta-item">التاريخ: <strong>{created}</strong></div>
+                    <div class="meta-item">الرسائل: <strong>{len(messages)}</strong></div>
+                </div>
+                <div class="messages">
+                    {messages_html}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+    finally:
+        db.close()
 
 
 @app.get("/api/db-test")
