@@ -223,52 +223,13 @@ async def get_stats_data() -> dict:
 
 
 async def get_openai_usage() -> dict:
-    """Get OpenAI billing and usage information"""
-    if not OPENAI_API_KEY:
-        return None
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
-
-            # Get subscription info (credit balance)
-            sub_response = await client.get(
-                "https://api.openai.com/v1/dashboard/billing/subscription",
-                headers=headers
-            )
-
-            # Get usage for current month
-            today = datetime.utcnow()
-            start_date = today.replace(day=1).strftime("%Y-%m-%d")
-            end_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-
-            usage_response = await client.get(
-                f"https://api.openai.com/v1/dashboard/billing/usage?start_date={start_date}&end_date={end_date}",
-                headers=headers
-            )
-
-            result = {}
-
-            if sub_response.status_code == 200:
-                sub_data = sub_response.json()
-                result['hard_limit_usd'] = sub_data.get('hard_limit_usd', 0)
-                result['soft_limit_usd'] = sub_data.get('soft_limit_usd', 0)
-                result['plan'] = sub_data.get('plan', {}).get('title', 'Unknown')
-
-            if usage_response.status_code == 200:
-                usage_data = usage_response.json()
-                # total_usage is in cents
-                result['used_usd'] = usage_data.get('total_usage', 0) / 100
-                result['daily_costs'] = usage_data.get('daily_costs', [])[-7:]  # Last 7 days
-
-            if result:
-                if 'hard_limit_usd' in result and 'used_usd' in result:
-                    result['remaining_usd'] = result['hard_limit_usd'] - result['used_usd']
-                return result
-
-    except Exception as e:
-        logger.error(f"Error fetching OpenAI usage: {e}")
-
+    """
+    OpenAI removed API access to billing information in 2024.
+    Billing endpoints now require browser session keys, not API keys.
+    Return None to show link to dashboard instead.
+    """
+    # Note: OpenAI billing API no longer works with API keys
+    # Users must check usage at: https://platform.openai.com/usage
     return None
 
 
@@ -333,34 +294,19 @@ def generate_dashboard_html(stats: dict, api_status: dict, openai_usage: dict = 
         </div>
         """
 
-    # OpenAI usage card
-    openai_card = ""
-    if openai_usage:
-        used = openai_usage.get('used_usd', 0)
-        limit = openai_usage.get('hard_limit_usd', 0)
-        remaining = openai_usage.get('remaining_usd', 0)
-        plan = openai_usage.get('plan', 'Unknown')
-        percentage = (used / limit * 100) if limit > 0 else 0
-
-        # Color based on usage
-        bar_color = '#4ade80' if percentage < 50 else '#facc15' if percentage < 80 else '#f87171'
-
-        openai_card = f"""
+    # OpenAI usage card - Link to dashboard since API access was removed
+    openai_card = """
         <div class="card openai-card">
             <h2>💰 رصيد OpenAI</h2>
             <div class="credit-info">
-                <div class="credit-plan">{plan}</div>
-                <div class="credit-numbers">
-                    <span class="credit-used">${used:.2f}</span>
-                    <span class="credit-separator">/</span>
-                    <span class="credit-limit">${limit:.2f}</span>
-                </div>
-                <div class="credit-bar-container">
-                    <div class="credit-bar" style="width: {percentage:.1f}%; background: {bar_color};"></div>
-                </div>
-                <div class="credit-remaining">
-                    المتبقي: <strong>${remaining:.2f}</strong> ({100-percentage:.1f}%)
-                </div>
+                <p style="color: #888; margin-bottom: 15px;">
+                    OpenAI أزالت الوصول للفواتير عبر API
+                </p>
+                <a href="https://platform.openai.com/usage" target="_blank"
+                   style="display: inline-block; background: linear-gradient(135deg, #10a37f 0%, #0d8a6a 100%);
+                          color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                    عرض الاستخدام في OpenAI ←
+                </a>
             </div>
         </div>
         """
