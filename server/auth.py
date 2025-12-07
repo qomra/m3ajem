@@ -1,4 +1,5 @@
 import os
+import sys
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional
@@ -6,10 +7,18 @@ from fastapi import HTTPException, Header
 from sqlalchemy.orm import Session
 from models import User
 
-# JWT Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+# JWT Configuration - REQUIRED on startup
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    print("ERROR: JWT_SECRET environment variable is required!")
+    print("Please set JWT_SECRET to a secure random string (at least 32 characters)")
+    sys.exit(1)
+
+if len(JWT_SECRET) < 32:
+    print("WARNING: JWT_SECRET should be at least 32 characters for security")
+
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_DAYS = 30
+JWT_EXPIRATION_DAYS = 7  # Reduced from 30 for better security
 
 # Rate Limit Configuration
 DAILY_REQUEST_LIMIT = int(os.getenv("DAILY_REQUEST_LIMIT", "30"))

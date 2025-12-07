@@ -1,15 +1,23 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.responses import RedirectResponse
 from typing import Optional
 from sqlalchemy.orm import Session
 import httpx
 import os
+import logging
 from datetime import datetime
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from database import SessionLocal
 from models import User
 from auth import create_jwt_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, DAILY_REQUEST_LIMIT
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
+
+# IP-based rate limiter for auth endpoints (prevent brute force)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -126,7 +134,8 @@ async def google_callback(code: str, db: Session = Depends(get_db)):
 
 
 @router.post("/google/mobile", response_model=GoogleAuthResponse)
-async def google_mobile_auth(id_token: str, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")  # Prevent brute force
+async def google_mobile_auth(request: Request, id_token: str, db: Session = Depends(get_db)):
     """
     Alternative endpoint for mobile apps using Google Sign-In SDK.
     Mobile app gets ID token directly from Google SDK and sends it here.
@@ -191,8 +200,51 @@ async def google_mobile_auth(id_token: str, db: Session = Depends(get_db)):
     )
 
 
+async def verify_apple_identity_token(identity_token: str) -> dict:
+    """
+    Verify Apple identity token by:
+    1. Fetching Apple's public keys
+    2. Decoding and verifying the JWT signature
+    3. Validating claims (issuer, audience, expiry)
+    """
+    import jwt
+    from jwt import PyJWKClient
+
+    APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
+    APPLE_ISSUER = "https://appleid.apple.com"
+    # Your Apple App ID (bundle identifier)
+    APPLE_AUDIENCE = os.getenv("APPLE_BUNDLE_ID", "com.jalalirs.maajm")
+
+    try:
+        # Fetch Apple's public keys
+        jwks_client = PyJWKClient(APPLE_KEYS_URL)
+        signing_key = jwks_client.get_signing_key_from_jwt(identity_token)
+
+        # Decode and verify the token
+        decoded = jwt.decode(
+            identity_token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=APPLE_AUDIENCE,
+            issuer=APPLE_ISSUER,
+        )
+
+        return decoded
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Apple token has expired")
+    except jwt.InvalidAudienceError:
+        raise HTTPException(status_code=401, detail="Invalid Apple token audience")
+    except jwt.InvalidIssuerError:
+        raise HTTPException(status_code=401, detail="Invalid Apple token issuer")
+    except Exception as e:
+        logger.error(f"Apple token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Apple identity token")
+
+
 @router.post("/apple/mobile", response_model=GoogleAuthResponse)
+@limiter.limit("10/minute")  # Prevent brute force
 async def apple_mobile_auth(
+    request: Request,
     identity_token: str,
     user_id: str,
     email: str = None,
@@ -205,14 +257,17 @@ async def apple_mobile_auth(
 
     Note: Apple may hide user's real email, so email might be a private relay.
     """
-    # For Apple Sign In, we trust the mobile app's SDK verification
-    # In production, you should verify the identity_token with Apple's servers
-    # For now, we'll accept it (the mobile SDK does the verification)
+    # Verify identity token with Apple's servers
+    token_data = await verify_apple_identity_token(identity_token)
 
-    apple_id = user_id
+    # Use 'sub' claim from token as the Apple user ID (more reliable than client-provided)
+    apple_id = token_data.get("sub", user_id)
 
-    # Use provided email or create a placeholder
-    user_email = email if email else f"{apple_id}@appleid.private"
+    # Get email from token if available, otherwise use provided email
+    token_email = token_data.get("email")
+    user_email = token_email or email or f"{apple_id}@appleid.private"
+
+    logger.info(f"Apple auth: user_id={apple_id[:8]}..., email={user_email}")
 
     # Create or update user in database
     user = db.query(User).filter(User.apple_id == apple_id).first()

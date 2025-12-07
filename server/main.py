@@ -5,15 +5,27 @@ from contextlib import asynccontextmanager
 import asyncio
 import json
 import os
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import httpx
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from database import engine, SessionLocal
 from models import Base, Conversation, Message, ToolCall, User
 from schemas import ChatRequest, ChatResponse, ToolCallData
-from auth_routes import router as auth_router
+from auth_routes import router as auth_router, limiter
 from auth import get_current_user, check_rate_limit, DAILY_REQUEST_LIMIT
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
+    datefmt='%Y-%m-%dT%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 # Initialize database
 @asynccontextmanager
@@ -31,10 +43,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# Add rate limiter to app state and error handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS middleware - open for mobile app (CORS only applies to browsers)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure based on your needs
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -84,20 +100,8 @@ async def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/debug/config")
-async def debug_config():
-    """Debug endpoint to check environment variables (hide actual keys)"""
-    return {
-        "default_provider": DEFAULT_PROVIDER,
-        "providers": {
-            provider: {
-                "api_key_set": bool(config["api_key"]),
-                "api_key_length": len(config["api_key"]) if config["api_key"] else 0,
-                "model": config["model"],
-            }
-            for provider, config in PROVIDER_CONFIGS.items()
-        }
-    }
+# Debug endpoint removed for security - use Railway logs instead
+# To check config, SSH into container or check Railway dashboard
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -223,17 +227,13 @@ async def chat(
             sources=response_data.get("sources", []),
         )
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
-        # Log the full error for debugging
-        import traceback
-        error_details = {
-            "error": str(e),
-            "type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        }
-        print(f"ERROR in /chat endpoint: {error_details}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chat endpoint error: type={type(e).__name__}, message={str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         db.close()
 
@@ -318,15 +318,8 @@ async def forward_to_provider(
                     for tool in tools
                 ]
 
-            # Log the request for debugging
-            print(f"\n{'='*50}")
-            print(f"Sending request to OpenAI:")
-            print(f"  Model: {config['model']}")
-            print(f"  Number of messages: {len(payload['messages'])}")
-            print(f"  Message roles: {[m['role'] for m in payload['messages']]}")
-            print(f"  Last message content: {payload['messages'][-1].get('content', '')[:100]}")
-            print(f"  Number of tools: {len(payload.get('tools', []))}")
-            print(f"{'='*50}\n")
+            # Log the request
+            logger.info(f"OpenAI request: model={config['model']}, messages={len(payload['messages'])}, tools={len(payload.get('tools', []))}")
 
             response = await client.post(
                 f"{config['base_url']}/chat/completions",
@@ -336,8 +329,7 @@ async def forward_to_provider(
 
             if not response.is_success:
                 error_body = response.text
-                print(f"OpenAI API Error: {response.status_code}")
-                print(f"Error body: {error_body}")
+                logger.error(f"OpenAI API Error: status={response.status_code}, body={error_body[:500]}")
                 response.raise_for_status()
 
             data = response.json()
@@ -358,10 +350,8 @@ async def forward_to_provider(
                     }
                     for tc in message["tool_calls"]
                 ]
-                print(f"OpenAI returned {len(result['tool_calls'])} tool calls")
 
-            print(f"OpenAI response - Content: {result.get('content', '')[:100]}")
-            print(f"OpenAI response - Tool calls: {len(result['tool_calls'])}")
+            logger.info(f"OpenAI response: content_len={len(result.get('content', ''))}, tool_calls={len(result['tool_calls'])}")
 
             return result
 
