@@ -3,12 +3,41 @@ import { GatewayAuthService } from '@services/auth/GatewayAuthService';
 import { GATEWAY_URL } from '@/config/gateway';
 
 /**
- * Gateway Provider
+ * Gateway Provider (Singleton)
  * Routes requests through the M3ajem gateway server instead of directly to AI providers
+ * Uses singleton to maintain conversation ID across requests
  */
-export class GatewayProvider implements AIProvider {
+class GatewayProviderClass implements AIProvider {
   public provider: string = 'gateway';
   public model: string = 'gpt-5'; // Server decides actual model
+  private conversationId: string | null = null;
+
+  /**
+   * Set the conversation ID for subsequent requests
+   */
+  setConversationId(id: string) {
+    console.log('GatewayProvider: Setting conversation ID:', id);
+    this.conversationId = id;
+  }
+
+  /**
+   * Get or create a conversation ID
+   */
+  getConversationId(): string {
+    if (!this.conversationId) {
+      this.conversationId = `conv-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      console.log('GatewayProvider: Created new conversation ID:', this.conversationId);
+    }
+    return this.conversationId;
+  }
+
+  /**
+   * Reset conversation ID (for starting new conversations)
+   */
+  resetConversationId() {
+    console.log('GatewayProvider: Resetting conversation ID');
+    this.conversationId = null;
+  }
 
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
@@ -23,6 +52,9 @@ export class GatewayProvider implements AIProvider {
       throw new Error('Not authenticated. Please sign in with Google or Apple.');
     }
 
+    const conversationId = this.getConversationId();
+    console.log('GatewayProvider: Using conversation ID:', conversationId);
+
     const response = await fetch(`${GATEWAY_URL}/chat`, {
       method: 'POST',
       headers: {
@@ -30,7 +62,7 @@ export class GatewayProvider implements AIProvider {
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
-        conversation_id: `conv-${Date.now()}`,
+        conversation_id: conversationId,
         message: messages[messages.length - 1].content,
         messages,
         system_prompt: systemPrompt,
@@ -97,5 +129,15 @@ export class GatewayProvider implements AIProvider {
     // Gateway provider handles tools on the server side
     // Just call generateResponse with tools
     return this.generateResponse(messages, undefined, tools);
+  }
+}
+
+// Singleton instance
+export const GatewayProvider = new GatewayProviderClass();
+
+// For backward compatibility with ProviderFactory
+export class GatewayProviderFactory {
+  static getInstance(): GatewayProviderClass {
+    return GatewayProvider;
   }
 }

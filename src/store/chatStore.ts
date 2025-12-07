@@ -5,6 +5,7 @@ import { ChatRepository } from '@services/database/ChatRepository';
 import { APIKeyStorage } from '@services/storage/apiKeyStorage';
 import { TwoDatabaseMigrationRunner } from '@services/database/TwoDatabaseMigrationRunner';
 import { OneTimeChatMigration } from '@services/database/OneTimeChatMigration';
+import { GatewayProvider } from '@services/ai/GatewayProvider';
 import type {
   Conversation,
   ConversationWithStats,
@@ -112,6 +113,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!chatService) throw new Error('Chat service not initialized');
 
     try {
+      // Reset gateway conversation ID for new conversations
+      if (provider === 'gateway') {
+        GatewayProvider.resetConversationId();
+      }
+
       // Create conversation with default title
       const conversation = await chatService.conversationManager.createConversation(
         'محادثة جديدة',
