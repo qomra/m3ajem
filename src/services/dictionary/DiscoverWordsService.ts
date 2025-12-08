@@ -25,6 +25,17 @@ export interface RootMatch {
 }
 
 /**
+ * Moraqman (digitized) dictionary match
+ */
+export interface MoraqmanMatch {
+  root: string;
+  rootId: number;
+  dictionaryId: number;
+  dictionaryName: string;
+  definitionLength: number;
+}
+
+/**
  * Discovery result for a single word
  */
 export interface WordDiscoveryResult {
@@ -33,6 +44,7 @@ export interface WordDiscoveryResult {
   exactMatch: boolean;
   indexedMatches: IndexedWordMatch[];
   rootMatches: RootMatch[];
+  moraqmanMatches: MoraqmanMatch[]; // Matches in digitized dictionaries
 }
 
 /**
@@ -82,9 +94,12 @@ export class DiscoverWordsService {
     // 1. Find indexed word matches (exact match in words table)
     const indexedMatches = await this.findIndexedMatches(normalizedWord);
 
-    // 2. Find root matches across all dictionaries
+    // 2. Find root matches across lo3awi dictionaries
     // Search by both word and provided root
     const rootMatches = await this.findRootMatchesEnhanced(normalizedWord, normalizedRoot);
+
+    // 3. Find matches in moraqman (digitized) dictionaries using partial matching
+    const moraqmanMatches = await this.findMoraqmanMatches(normalizedWord, normalizedRoot);
 
     // Determine if exact match was found
     const exactMatch = indexedMatches.length > 0 ||
@@ -96,6 +111,7 @@ export class DiscoverWordsService {
       exactMatch,
       indexedMatches,
       rootMatches,
+      moraqmanMatches,
     };
   }
 
@@ -218,7 +234,7 @@ export class DiscoverWordsService {
           LENGTH(r.definition) as definition_length
         FROM roots r
         INNER JOIN dictionaries d ON r.dictionary_id = d.id
-        WHERE
+        WHERE d.type = 'lo3awi' AND
           REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
             r.root,
             char(1611), ''),
@@ -253,6 +269,91 @@ export class DiscoverWordsService {
           definitionLength: row.definition_length,
           indexedWords,
           matchType: type,
+        });
+      }
+    }
+
+    return allMatches;
+  }
+
+  /**
+   * Find matches in moraqman (digitized) dictionaries
+   * Uses LIKE for partial matching since moraqman entries can be compound terms
+   */
+  private async findMoraqmanMatches(
+    normalizedWord: string,
+    normalizedRoot?: string
+  ): Promise<MoraqmanMatch[]> {
+    const allMatches: MoraqmanMatch[] = [];
+    const seenRootIds = new Set<number>();
+
+    // Build search terms - include both word and root if available
+    const searchTerms: string[] = [normalizedWord];
+
+    // Try word variants
+    if (normalizedWord.startsWith('ال')) {
+      searchTerms.push(normalizedWord.substring(2));
+    } else {
+      searchTerms.push('ال' + normalizedWord);
+    }
+
+    // Add root variants if provided
+    if (normalizedRoot && normalizedRoot !== normalizedWord) {
+      searchTerms.push(normalizedRoot);
+      if (normalizedRoot.startsWith('ال')) {
+        searchTerms.push(normalizedRoot.substring(2));
+      } else {
+        searchTerms.push('ال' + normalizedRoot);
+      }
+    }
+
+    // Search for each term using partial matching
+    for (const term of searchTerms) {
+      const results = await this.db.getAllAsync<{
+        root_id: number;
+        root: string;
+        dictionary_id: number;
+        dictionary_name: string;
+        definition_length: number;
+      }>(
+        `SELECT
+          r.id as root_id,
+          r.root,
+          r.dictionary_id,
+          d.name as dictionary_name,
+          LENGTH(r.definition) as definition_length
+        FROM roots r
+        INNER JOIN dictionaries d ON r.dictionary_id = d.id
+        WHERE d.type = 'moraqman' AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            r.root,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          LIKE '%' || ? || '%'
+        ORDER BY d.id
+        LIMIT 15`,
+        [term]
+      );
+
+      for (const row of results) {
+        if (seenRootIds.has(row.root_id)) {
+          continue;
+        }
+        seenRootIds.add(row.root_id);
+
+        allMatches.push({
+          root: row.root,
+          rootId: row.root_id,
+          dictionaryId: row.dictionary_id,
+          dictionaryName: row.dictionary_name,
+          definitionLength: row.definition_length,
         });
       }
     }
@@ -309,7 +410,7 @@ export class DiscoverWordsService {
         }
         output += '\n';
 
-        if (!result.exactMatch && result.indexedMatches.length === 0 && result.rootMatches.length === 0) {
+        if (!result.exactMatch && result.indexedMatches.length === 0 && result.rootMatches.length === 0 && result.moraqmanMatches.length === 0) {
           output += 'لم يتم العثور على نتائج\n';
           return output;
         }
@@ -347,6 +448,15 @@ export class DiscoverWordsService {
             if (match.indexedWords.length > 0) {
               output += `  كلمات مفهرسة: [${match.indexedWords.slice(0, 5).join('، ')}${match.indexedWords.length > 5 ? '...' : ''}]\n`;
             }
+          }
+        }
+
+        // Moraqman (digitized) dictionary matches
+        if (result.moraqmanMatches.length > 0) {
+          output += '\n### المعاجم المرقمنة\n';
+          for (const match of result.moraqmanMatches) {
+            const sizeLabel = this.getSizeLabel(match.definitionLength);
+            output += `- **${match.root}** ← ${match.dictionaryName} (${match.definitionLength} حرف - ${sizeLabel})\n`;
           }
         }
 
