@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import secrets
 import os
 import httpx
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 import logging
@@ -970,25 +971,77 @@ async def conversation_detail(
         if not conv:
             return HTMLResponse(content="<h1>Conversation not found</h1>", status_code=404)
 
-        # Get messages
+        # Get messages with their IDs
         messages = db.execute(text("""
-            SELECT role, content, timestamp FROM messages
+            SELECT id, role, content, timestamp FROM messages
             WHERE conversation_id = :id
             ORDER BY timestamp ASC
         """), {"id": conversation_id}).fetchall()
 
         messages_html = ""
         for msg in messages:
-            role = msg[0]
-            content = msg[1] or "[No content]"
-            timestamp = msg[2].strftime('%H:%M:%S') if msg[2] else ''
+            msg_id = msg[0]
+            role = msg[1]
+            content = msg[2] or ""
+            timestamp = msg[3].strftime('%H:%M:%S') if msg[3] else ''
 
             role_class = "user" if role == "user" else "assistant"
             role_label = "👤 المستخدم" if role == "user" else "🤖 المساعد"
 
-            # Escape HTML and preserve newlines
-            content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            content = content.replace("\n", "<br>")
+            # Get tool calls for this message
+            tool_calls = db.execute(text("""
+                SELECT tool_name, arguments, result FROM tool_calls
+                WHERE message_id = :msg_id
+                ORDER BY timestamp ASC
+            """), {"msg_id": msg_id}).fetchall()
+
+            # Build tool calls HTML
+            tool_calls_html = ""
+            if tool_calls:
+                tool_calls_html = '<div class="tool-calls">'
+                for tc in tool_calls:
+                    tool_name = tc[0] or "unknown"
+                    arguments = tc[1] or "{}"
+                    result = tc[2] or "null"
+
+                    # Parse and format arguments
+                    try:
+                        args_dict = json.loads(arguments) if arguments else {}
+                        args_display = json.dumps(args_dict, ensure_ascii=False, indent=2)[:500]
+                    except:
+                        args_display = str(arguments)[:500]
+
+                    # Parse and format result (truncate if too long)
+                    try:
+                        result_dict = json.loads(result) if result else None
+                        result_display = json.dumps(result_dict, ensure_ascii=False, indent=2)[:1000] if result_dict else "null"
+                    except:
+                        result_display = str(result)[:1000]
+
+                    args_display = args_display.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    result_display = result_display.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+                    tool_calls_html += f'''
+                    <div class="tool-call">
+                        <div class="tool-name">🔧 {tool_name}</div>
+                        <div class="tool-args"><strong>Arguments:</strong><pre>{args_display}</pre></div>
+                        <details class="tool-result-details">
+                            <summary>Result (click to expand)</summary>
+                            <pre>{result_display}</pre>
+                        </details>
+                    </div>
+                    '''
+                tool_calls_html += '</div>'
+
+            # Handle content display
+            if content:
+                content_escaped = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                content_escaped = content_escaped.replace("\n", "<br>")
+                content_display = f'<div class="message-content">{content_escaped}</div>'
+            elif tool_calls:
+                content_display = '<div class="message-content no-content">[Tool calls only - no text content]</div>'
+            else:
+                content_display = '<div class="message-content no-content">[No content]</div>'
 
             messages_html += f"""
             <div class="message {role_class}">
@@ -996,7 +1049,8 @@ async def conversation_detail(
                     <span class="role">{role_label}</span>
                     <span class="time">{timestamp}</span>
                 </div>
-                <div class="message-content">{content}</div>
+                {content_display}
+                {tool_calls_html}
             </div>
             """
 
@@ -1083,6 +1137,52 @@ async def conversation_detail(
                     line-height: 1.6;
                     white-space: pre-wrap;
                     word-break: break-word;
+                }}
+                .message-content.no-content {{
+                    color: #888;
+                    font-style: italic;
+                }}
+                .tool-calls {{
+                    margin-top: 12px;
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                    padding-top: 12px;
+                }}
+                .tool-call {{
+                    background: rgba(102, 126, 234, 0.1);
+                    border: 1px solid rgba(102, 126, 234, 0.3);
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-bottom: 10px;
+                }}
+                .tool-name {{
+                    font-weight: 600;
+                    color: #667eea;
+                    margin-bottom: 8px;
+                    font-size: 1.1em;
+                }}
+                .tool-args {{
+                    margin-bottom: 8px;
+                }}
+                .tool-args pre, .tool-result-details pre {{
+                    background: rgba(0,0,0,0.3);
+                    padding: 8px;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                    font-size: 0.85em;
+                    margin-top: 4px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                }}
+                .tool-result-details {{
+                    margin-top: 8px;
+                }}
+                .tool-result-details summary {{
+                    cursor: pointer;
+                    color: #888;
+                    font-size: 0.9em;
+                }}
+                .tool-result-details summary:hover {{
+                    color: #fff;
                 }}
             </style>
         </head>

@@ -468,7 +468,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Search for a root across all dictionaries
+  // Search for a root across all dictionaries (ignores diacritics, partial match)
   searchRoot: async (root: string) => {
     const { db } = get();
     if (!db) {
@@ -477,16 +477,33 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
 
     try {
-      const rows = await db.getAllAsync<{ dictionary_name: string; definition: string }>(`
-        SELECT d.name as dictionary_name, r.definition
+      // Remove diacritics from search term for normalized matching
+      const normalizedRoot = root.replace(/[\u064B-\u065F\u0670]/g, '');
+
+      const rows = await db.getAllAsync<{ dictionary_name: string; definition: string; root: string }>(`
+        SELECT d.name as dictionary_name, r.definition, r.root
         FROM roots r
         JOIN dictionaries d ON r.dictionary_id = d.id
-        WHERE r.root = ?
-      `, [root]);
+        WHERE d.type = 'lo3awi' AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            r.root,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          LIKE '%' || ? || '%'
+        LIMIT 100
+      `, [normalizedRoot]);
 
       return rows.map(row => ({
         dictionary: row.dictionary_name,
         definition: row.definition,
+        root: row.root,
       }));
     } catch (error) {
       console.error('Error searching root:', error);
@@ -494,7 +511,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Search for a root across moraqman dictionaries only
+  // Search for a root across moraqman dictionaries only (ignores diacritics)
   searchMoraqmanRoot: async (root: string) => {
     const { db } = get();
     if (!db) {
@@ -503,14 +520,29 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
 
     try {
-      // Use LIKE for partial matching (keys contain Arabic and English)
+      // Remove diacritics from search term for normalized matching
+      const normalizedRoot = root.replace(/[\u064B-\u065F\u0670]/g, '');
+
+      // Use LIKE for partial matching with diacritics stripped (keys contain Arabic and English)
       const rows = await db.getAllAsync<{ dictionary_name: string; root: string; definition: string }>(`
         SELECT d.name as dictionary_name, r.root, r.definition
         FROM roots r
         JOIN dictionaries d ON r.dictionary_id = d.id
-        WHERE r.root LIKE ? AND d.type = 'moraqman'
+        WHERE d.type = 'moraqman' AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            r.root,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          LIKE '%' || ? || '%'
         LIMIT 100
-      `, [`%${root}%`]);
+      `, [normalizedRoot]);
 
       return rows.map(row => ({
         dictionary: row.dictionary_name,
@@ -523,7 +555,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Search for a root in a specific dictionary
+  // Search for a root in a specific dictionary (ignores diacritics)
   searchRootInDictionary: async (dictionaryName: string, root: string) => {
     const { db } = get();
     if (!db) {
@@ -532,12 +564,27 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
 
     try {
+      // Remove diacritics from search term for normalized matching
+      const normalizedRoot = root.replace(/[\u064B-\u065F\u0670]/g, '');
+
       const row = await db.getFirstAsync<{ definition: string }>(`
         SELECT r.definition
         FROM roots r
         JOIN dictionaries d ON r.dictionary_id = d.id
-        WHERE d.name = ? AND r.root = ?
-      `, [dictionaryName, root]);
+        WHERE d.name = ? AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            r.root,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          = ?
+      `, [dictionaryName, normalizedRoot]);
 
       return row?.definition || null;
     } catch (error) {
@@ -569,7 +616,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Check if a root exists in a dictionary (for safe source resolution)
+  // Check if a root exists in a dictionary (ignores diacritics)
   checkRootExists: async (dictionaryName: string, root: string): Promise<boolean> => {
     const { db } = get();
     if (!db) {
@@ -578,12 +625,27 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
 
     try {
+      // Remove diacritics from search term for normalized matching
+      const normalizedRoot = root.replace(/[\u064B-\u065F\u0670]/g, '');
+
       const row = await db.getFirstAsync<{ count: number }>(`
         SELECT COUNT(*) as count
         FROM roots r
         JOIN dictionaries d ON r.dictionary_id = d.id
-        WHERE d.name = ? AND r.root = ?
-      `, [dictionaryName, root]);
+        WHERE d.name = ? AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            r.root,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          = ?
+      `, [dictionaryName, normalizedRoot]);
 
       return (row?.count ?? 0) > 0;
     } catch (error) {
@@ -592,7 +654,7 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
   },
 
-  // Check if a word exists in indexed roots (for safe source resolution)
+  // Check if a word exists in indexed roots (ignores diacritics)
   checkWordExists: async (word: string): Promise<boolean> => {
     const { db } = get();
     if (!db) {
@@ -601,12 +663,27 @@ export const useDictionaryStore = create<DictionaryState>((set, get) => ({
     }
 
     try {
+      // Remove diacritics from search term for normalized matching
+      const normalizedWord = word.replace(/[\u064B-\u065F\u0670]/g, '');
+
       const row = await db.getFirstAsync<{ count: number }>(`
         SELECT COUNT(*) as count
         FROM words w
         JOIN roots r ON w.root_id = r.id
-        WHERE w.word = ? AND r.first_word_position >= 0
-      `, [word]);
+        WHERE r.first_word_position >= 0 AND
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            w.word,
+            char(1611), ''),
+            char(1612), ''),
+            char(1613), ''),
+            char(1614), ''),
+            char(1615), ''),
+            char(1616), ''),
+            char(1617), ''),
+            char(1618), ''),
+            char(1648), '')
+          = ?
+      `, [normalizedWord]);
 
       return (row?.count ?? 0) > 0;
     } catch (error) {

@@ -162,7 +162,10 @@
       "meaning": "معنى",
       "sourceUnavailable": "المصدر غير متوفر",
       "sourceUnavailableMessage": "هذا المصدر لم يعد متوفراً في قاعدة البيانات الحالية. ربما تم تحديث أو إزالة المحتوى.",
-      "navigationError": "حدث خطأ أثناء الانتقال إلى المصدر"
+      "navigationError": "حدث خطأ أثناء الانتقال إلى المصدر",
+      "relatedTitle": "أنظر أيضاً",
+      "relatedSource": "مصدر ذو صلة",
+      "relatedSources": "مصادر ذات صلة"
     },
     "toolErrors": {
       "noWordsSpecified": "خطأ: لم يتم تحديد كلمات للبحث",

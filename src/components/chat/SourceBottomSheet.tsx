@@ -17,6 +17,7 @@ interface SourceBottomSheetProps {
   sources: Source[];
   onClose: () => void;
   onNavigateToSource?: (source: Source) => void;
+  title?: string; // Optional custom title (defaults to المصادر)
 }
 
 export function SourceBottomSheet({
@@ -24,9 +25,11 @@ export function SourceBottomSheet({
   sources,
   onClose,
   onNavigateToSource,
+  title,
 }: SourceBottomSheetProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const displayTitle = title || t('smart.sources.title');
 
 
   const handleOpenURL = async (url: string) => {
@@ -177,7 +180,7 @@ export function SourceBottomSheet({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              {t('smart.sources.title')} ({sources.length})
+              {displayTitle} ({sources.length})
             </Text>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={theme.colors.text} />

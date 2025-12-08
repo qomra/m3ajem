@@ -37,7 +37,8 @@ export interface AgentResponse {
   content: string;
   success: boolean;
   error?: string;
-  sources?: Source[]; // Sources collected from tool calls
+  sources?: Source[]; // Sources actually used/cited (المصادر)
+  relatedSources?: Source[]; // Related sources not used (أنظر أيضاً)
   thoughts?: AgentThought[]; // LLM reasoning steps during tool calling
   duration?: number; // Total processing time in milliseconds
 }

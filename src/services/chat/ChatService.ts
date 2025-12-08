@@ -85,7 +85,8 @@ export class ChatService {
         role: 'assistant',
         content: response.content,
         timestamp: Date.now(),
-        sources: response.sources || [], // Attach sources from agent
+        sources: response.sources || [], // Attach sources from agent (المصادر)
+        relatedSources: response.relatedSources || [], // Attach related sources (أنظر أيضاً)
         thoughts: response.thoughts, // Attach thoughts from agent (saved to DB)
         duration: response.duration, // Attach duration from agent (saved to DB)
       };
@@ -94,6 +95,7 @@ export class ChatService {
 
       console.log(
         `Saved assistant message with ${assistantMessage.sources?.length || 0} sources, ` +
+        `${assistantMessage.relatedSources?.length || 0} related sources, ` +
         `${assistantMessage.thoughts?.length || 0} thoughts, ` +
         `duration: ${assistantMessage.duration}ms`
       );

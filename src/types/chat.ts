@@ -11,7 +11,8 @@ export interface Message {
   role: MessageRole;
   content: string;
   timestamp: number;
-  sources?: Source[]; // Sources referenced in this message
+  sources?: Source[]; // Sources actually used/cited (المصادر)
+  relatedSources?: Source[]; // Related sources not used (أنظر أيضاً)
 }
 
 export interface Conversation {

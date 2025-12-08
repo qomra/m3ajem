@@ -15,6 +15,9 @@ export class MessageRepository {
     // Serialize sources as JSON if present
     const sourcesJson = message.sources ? JSON.stringify(message.sources) : null;
 
+    // Serialize related sources as JSON if present (أنظر أيضاً)
+    const relatedSourcesJson = message.relatedSources ? JSON.stringify(message.relatedSources) : null;
+
     // Serialize thoughts as JSON if present
     const thoughtsJson = message.thoughts ? JSON.stringify(message.thoughts) : null;
 
@@ -22,8 +25,8 @@ export class MessageRepository {
     const duration = message.duration ?? null;
 
     await this.db.runAsync(
-      'INSERT INTO messages (id, conversation_id, role, content, timestamp, sources, thoughts, duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [message.id, message.conversation_id, message.role, message.content, message.timestamp, sourcesJson, thoughtsJson, duration]
+      'INSERT INTO messages (id, conversation_id, role, content, timestamp, sources, related_sources, thoughts, duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [message.id, message.conversation_id, message.role, message.content, message.timestamp, sourcesJson, relatedSourcesJson, thoughtsJson, duration]
     );
 
     return message;
@@ -33,7 +36,7 @@ export class MessageRepository {
    * Get all messages for a conversation
    */
   async getByConversation(conversationId: string): Promise<MessageWithContexts[]> {
-    const rows = await this.db.getAllAsync<Message & { sources: string | null; thoughts: string | null; duration: number | null }>(
+    const rows = await this.db.getAllAsync<Message & { sources: string | null; related_sources: string | null; thoughts: string | null; duration: number | null }>(
       'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC',
       [conversationId]
     );
@@ -46,15 +49,25 @@ export class MessageRepository {
         [message.id]
       );
 
-      // Parse sources from JSON if present
+      // Parse sources from JSON if present (المصادر)
       let sources = undefined;
       if (message.sources) {
         try {
           sources = JSON.parse(message.sources);
-          console.log(`MessageRepository: Loaded ${sources?.length || 0} sources for message ${message.id}`);
         } catch (error) {
           console.error('Error parsing sources JSON:', error);
           sources = undefined;
+        }
+      }
+
+      // Parse related sources from JSON if present (أنظر أيضاً)
+      let relatedSources = undefined;
+      if (message.related_sources) {
+        try {
+          relatedSources = JSON.parse(message.related_sources);
+        } catch (error) {
+          console.error('Error parsing related_sources JSON:', error);
+          relatedSources = undefined;
         }
       }
 
@@ -63,7 +76,6 @@ export class MessageRepository {
       if (message.thoughts) {
         try {
           thoughts = JSON.parse(message.thoughts);
-          console.log(`MessageRepository: Loaded ${thoughts?.length || 0} thoughts for message ${message.id}`);
         } catch (error) {
           console.error('Error parsing thoughts JSON:', error);
           thoughts = undefined;
@@ -76,6 +88,7 @@ export class MessageRepository {
       messagesWithContexts.push({
         ...message,
         sources,
+        relatedSources,
         thoughts,
         duration,
         contextIds: contextRows.map(row => row.context_id),
@@ -89,7 +102,7 @@ export class MessageRepository {
    * Get a message by ID
    */
   async getById(id: string): Promise<MessageWithContexts | null> {
-    const row = await this.db.getFirstAsync<Message & { sources: string | null; thoughts: string | null; duration: number | null }>(
+    const row = await this.db.getFirstAsync<Message & { sources: string | null; related_sources: string | null; thoughts: string | null; duration: number | null }>(
       'SELECT * FROM messages WHERE id = ?',
       [id]
     );
@@ -98,7 +111,7 @@ export class MessageRepository {
       return null;
     }
 
-    // Parse sources from JSON if present
+    // Parse sources from JSON if present (المصادر)
     let sources = undefined;
     if (row.sources) {
       try {
@@ -106,6 +119,17 @@ export class MessageRepository {
       } catch (error) {
         console.error('Error parsing sources JSON:', error);
         sources = undefined;
+      }
+    }
+
+    // Parse related sources from JSON if present (أنظر أيضاً)
+    let relatedSources = undefined;
+    if (row.related_sources) {
+      try {
+        relatedSources = JSON.parse(row.related_sources);
+      } catch (error) {
+        console.error('Error parsing related_sources JSON:', error);
+        relatedSources = undefined;
       }
     }
 
@@ -126,6 +150,7 @@ export class MessageRepository {
     return {
       ...row,
       sources,
+      relatedSources,
       thoughts,
       duration,
     };

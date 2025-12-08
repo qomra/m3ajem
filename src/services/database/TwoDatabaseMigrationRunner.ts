@@ -15,6 +15,7 @@ import * as dictMigration001 from './migrations/dictionary/001_create_spectrum_v
 // Import user migrations
 import * as userMigration001 from './migrations/user/001_create_chat_tables';
 import * as userMigration002 from './migrations/user/002_add_thoughts_duration';
+import * as userMigration003 from './migrations/user/003_add_related_sources';
 
 // Register dictionary migrations (for dictionary.db)
 const dictionaryMigrations: Migration[] = [
@@ -39,6 +40,12 @@ const userMigrations: Migration[] = [
     name: 'add_thoughts_duration',
     up: userMigration002.up,
     down: userMigration002.down,
+  },
+  {
+    version: 3,
+    name: 'add_related_sources',
+    up: userMigration003.up,
+    down: userMigration003.down,
   },
 ];
 

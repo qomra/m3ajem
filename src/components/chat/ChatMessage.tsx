@@ -25,8 +25,10 @@ export function ChatMessage({ message, onContextPress }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const hasContexts = message.contextIds && message.contextIds.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
+  const hasRelatedSources = message.relatedSources && message.relatedSources.length > 0;
 
   const [showSources, setShowSources] = useState(false);
+  const [showRelatedSources, setShowRelatedSources] = useState(false);
   const [showIndexedWord, setShowIndexedWord] = useState(false);
   const [showDictionaryRoot, setShowDictionaryRoot] = useState(false);
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
@@ -176,7 +178,7 @@ export function ChatMessage({ message, onContextPress }: ChatMessageProps) {
           <ThoughtProcess thoughts={message.thoughts} duration={message.duration} />
         )}
 
-        {/* Sources indicator */}
+        {/* Sources indicator (المصادر) */}
         {hasSources && (
           <Pressable
             style={[
@@ -204,6 +206,38 @@ export function ChatMessage({ message, onContextPress }: ChatMessageProps) {
               ]}
             >
               {message.sources!.length} {message.sources!.length === 1 ? t('smart.sources.source') : t('smart.sources.sources')}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Related Sources indicator (أنظر أيضاً) */}
+        {hasRelatedSources && (
+          <Pressable
+            style={[
+              styles.sourcesBadge,
+              {
+                backgroundColor: isUser
+                  ? 'rgba(255, 255, 255, 0.2)'
+                  : theme.colors.background,
+                borderColor: isUser ? 'rgba(255, 255, 255, 0.3)' : theme.colors.border,
+              },
+            ]}
+            onPress={() => setShowRelatedSources(true)}
+          >
+            <Ionicons
+              name="eye-outline"
+              size={12}
+              color={isUser ? '#FFFFFF' : '#8B5CF6'}
+            />
+            <Text
+              style={[
+                styles.sourcesText,
+                {
+                  color: isUser ? '#FFFFFF' : '#8B5CF6',
+                },
+              ]}
+            >
+              {t('smart.sources.relatedTitle')} ({message.relatedSources!.length})
             </Text>
           </Pressable>
         )}
@@ -252,13 +286,24 @@ export function ChatMessage({ message, onContextPress }: ChatMessageProps) {
         </Text>
       </View>
 
-      {/* Sources Bottom Sheet */}
+      {/* Sources Bottom Sheet (المصادر) */}
       {hasSources && (
         <SourceBottomSheet
           visible={showSources}
           sources={message.sources!}
           onClose={() => setShowSources(false)}
           onNavigateToSource={handleNavigateToSource}
+        />
+      )}
+
+      {/* Related Sources Bottom Sheet (أنظر أيضاً) */}
+      {hasRelatedSources && (
+        <SourceBottomSheet
+          visible={showRelatedSources}
+          sources={message.relatedSources!}
+          onClose={() => setShowRelatedSources(false)}
+          onNavigateToSource={handleNavigateToSource}
+          title={t('smart.sources.relatedTitle')}
         />
       )}
 
