@@ -971,12 +971,23 @@ async def conversation_detail(
         if not conv:
             return HTMLResponse(content="<h1>Conversation not found</h1>", status_code=404)
 
-        # Get messages with their IDs, sources, and related_sources
-        messages = db.execute(text("""
-            SELECT id, role, content, timestamp, sources, related_sources FROM messages
-            WHERE conversation_id = :id
-            ORDER BY timestamp ASC
-        """), {"id": conversation_id}).fetchall()
+        # Get messages with their IDs
+        # Try to get sources columns, fallback if they don't exist
+        try:
+            messages = db.execute(text("""
+                SELECT id, role, content, timestamp, sources, related_sources FROM messages
+                WHERE conversation_id = :id
+                ORDER BY timestamp ASC
+            """), {"id": conversation_id}).fetchall()
+            has_sources_columns = True
+        except Exception:
+            # Fallback for databases without sources columns
+            messages = db.execute(text("""
+                SELECT id, role, content, timestamp FROM messages
+                WHERE conversation_id = :id
+                ORDER BY timestamp ASC
+            """), {"id": conversation_id}).fetchall()
+            has_sources_columns = False
 
         messages_html = ""
         for msg in messages:
@@ -984,8 +995,14 @@ async def conversation_detail(
             role = msg[1]
             content = msg[2] or ""
             timestamp = msg[3].strftime('%H:%M:%S') if msg[3] else ''
-            sources_json = msg[4] or "[]"
-            related_sources_json = msg[5] or "[]"
+
+            # Handle sources columns (may not exist in older databases)
+            if has_sources_columns:
+                sources_json = msg[4] or "[]"
+                related_sources_json = msg[5] or "[]"
+            else:
+                sources_json = "[]"
+                related_sources_json = "[]"
 
             role_class = "user" if role == "user" else "assistant"
             role_label = "👤 المستخدم" if role == "user" else "🤖 المساعد"
