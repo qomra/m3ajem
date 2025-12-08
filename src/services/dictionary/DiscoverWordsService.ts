@@ -415,9 +415,10 @@ export class DiscoverWordsService {
           return output;
         }
 
-        // Indexed matches (direct scroll)
+        // Indexed matches (direct scroll) - HIGHEST PRIORITY
         if (result.indexedMatches.length > 0) {
-          output += '\n### كلمات مفهرسة (تصفح مباشر)\n';
+          output += '\n### كلمات مفهرسة (الأهم - تصفح مباشر)\n';
+          output += 'لجلب المحتوى استخدم: root=الكلمة, dictionary=اسم المعجم\n';
           const uniqueMatches = new Map<string, IndexedWordMatch>();
           for (const match of result.indexedMatches) {
             const key = `${match.word}:${match.dictionaryName}`;
@@ -426,13 +427,14 @@ export class DiscoverWordsService {
             }
           }
           Array.from(uniqueMatches.values()).forEach((match) => {
-            output += `- **${match.word}** ← ${match.dictionaryName} (جذر: ${match.root})\n`;
+            output += `- root="${match.root}" dictionary="${match.dictionaryName}" ← كلمة: ${match.word}\n`;
           });
         }
 
         // Root matches - group by match type for clarity
         if (result.rootMatches.length > 0) {
           output += '\n### جذور في المعاجم\n';
+          output += 'لجلب المحتوى استخدم: root=الجذر, dictionary=اسم المعجم\n';
 
           // Sort by match type priority: exact > root > format
           const sortedMatches = [...result.rootMatches].sort((a, b) => {
@@ -443,7 +445,7 @@ export class DiscoverWordsService {
           for (const match of sortedMatches) {
             const sizeLabel = this.getSizeLabel(match.definitionLength);
             const matchLabel = match.matchType === 'exact' ? '✓' : match.matchType === 'root' ? '◎' : '○';
-            output += `- ${matchLabel} **${match.root}** ← ${match.dictionaryName} (${match.definitionLength} حرف - ${sizeLabel})\n`;
+            output += `- ${matchLabel} root="${match.root}" dictionary="${match.dictionaryName}" (${match.definitionLength} حرف - ${sizeLabel})\n`;
 
             if (match.indexedWords.length > 0) {
               output += `  كلمات مفهرسة: [${match.indexedWords.slice(0, 5).join('، ')}${match.indexedWords.length > 5 ? '...' : ''}]\n`;
@@ -453,10 +455,11 @@ export class DiscoverWordsService {
 
         // Moraqman (digitized) dictionary matches
         if (result.moraqmanMatches.length > 0) {
-          output += '\n### المعاجم المرقمنة\n';
+          output += '\n### المعاجم المرقمنة (متخصصة)\n';
+          output += 'لجلب المحتوى استخدم: root=المصطلح, dictionary=اسم المعجم\n';
           for (const match of result.moraqmanMatches) {
             const sizeLabel = this.getSizeLabel(match.definitionLength);
-            output += `- **${match.root}** ← ${match.dictionaryName} (${match.definitionLength} حرف - ${sizeLabel})\n`;
+            output += `- root="${match.root}" dictionary="${match.dictionaryName}" (${match.definitionLength} حرف - ${sizeLabel})\n`;
           }
         }
 
