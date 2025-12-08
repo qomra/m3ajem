@@ -972,22 +972,27 @@ async def conversation_detail(
             return HTMLResponse(content="<h1>Conversation not found</h1>", status_code=404)
 
         # Get messages with their IDs
-        # Try to get sources columns, fallback if they don't exist
+        # Check if sources columns exist first to avoid transaction issues
+        has_sources_columns = False
         try:
+            # Check if column exists
+            db.execute(text("SELECT sources FROM messages LIMIT 0"))
+            has_sources_columns = True
+        except Exception:
+            db.rollback()  # Reset transaction state
+
+        if has_sources_columns:
             messages = db.execute(text("""
                 SELECT id, role, content, timestamp, sources, related_sources FROM messages
                 WHERE conversation_id = :id
                 ORDER BY timestamp ASC
             """), {"id": conversation_id}).fetchall()
-            has_sources_columns = True
-        except Exception:
-            # Fallback for databases without sources columns
+        else:
             messages = db.execute(text("""
                 SELECT id, role, content, timestamp FROM messages
                 WHERE conversation_id = :id
                 ORDER BY timestamp ASC
             """), {"id": conversation_id}).fetchall()
-            has_sources_columns = False
 
         messages_html = ""
         for msg in messages:
