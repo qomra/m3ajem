@@ -179,20 +179,32 @@ export class SmartDictionaryAgent extends BaseAgent {
       }
 
       // Match source strings to actual Source objects
+      // Format expected: "DictionaryName - Root"
       const matchSource = (sourceStr: string): Source | null => {
-        const lowerStr = sourceStr.toLowerCase();
-        // Try exact match first
+        // Normalize Arabic text for comparison
+        const normalize = (s: string) => s.replace(/[\u064B-\u065F\u0670]/g, '').trim();
+        const normalizedInput = normalize(sourceStr);
+
         for (const source of allSources) {
           const dictSource = source as DictionarySource | IndexedSource;
           if (dictSource.dictionaryName && dictSource.root) {
-            const matchStr = `${dictSource.dictionaryName} - ${dictSource.root}`.toLowerCase();
-            if (lowerStr.includes(dictSource.dictionaryName.toLowerCase()) ||
-                matchStr.includes(lowerStr) ||
-                lowerStr.includes(matchStr)) {
+            // Build match string: "المعجم الوسيط - قدر"
+            const matchStr = `${dictSource.dictionaryName} - ${normalize(dictSource.root)}`;
+            const normalizedMatch = normalize(matchStr);
+
+            // Check if input contains BOTH dictionary AND root
+            const inputHasDict = normalizedInput.includes(normalize(dictSource.dictionaryName));
+            const inputHasRoot = normalizedInput.includes(normalize(dictSource.root));
+
+            if ((inputHasDict && inputHasRoot) ||
+                normalizedInput === normalizedMatch ||
+                normalizedInput.includes(normalizedMatch) ||
+                normalizedMatch.includes(normalizedInput)) {
               return source;
             }
           }
-          if (source.title && lowerStr.includes(source.title.toLowerCase())) {
+          // Fallback: check title
+          if (source.title && normalize(sourceStr).includes(normalize(source.title))) {
             return source;
           }
         }
