@@ -63,48 +63,27 @@ Special cases:
 };
 
 /**
- * Tool 2: Get Word Segments
- * Fetch actual content - LLM decides how much context
+ * Tool 2: Get Entry by ID
+ * Fetch actual content using the ID from discover_words
+ * Simple and unambiguous - just pass the ID number
  */
-export const getWordSegmentsTool: Tool = {
-  name: 'get_word_segments',
-  description: `جلب محتوى التعريف من معجم محدد.
+export const getEntryTool: Tool = {
+  name: 'get_entry',
+  description: `جلب محتوى التعريف باستخدام رقم المعرف من نتائج discover_words.
 
-**⚠️ مهم جداً:** استخدم اسم الجذر **بالضبط** كما ظهر في نتائج discover_words.
+استخدم الرقم الموجود بين الأقواس المربعة [ID] من نتائج البحث.
 
-أمثلة صحيحة:
-- discover_words أظهر "نَمُوذَجٌ" → استخدم root: "نموذج" (وليس "نمذج")
-- discover_words أظهر "ن م ذ ج" → استخدم root: "ن م ذ ج"
-- discover_words أظهر "حَرَمَ" → استخدم root: "حرم"
-
-Fetch definition content. Use the EXACT root name as shown in discover_words results.`,
+Fetch definition content using the ID number from discover_words results.
+The ID is shown in square brackets like [12345].`,
   parameters: {
     type: 'object',
     properties: {
-      root: {
-        type: 'string',
-        description: 'The EXACT root name from discover_words results (e.g., "نموذج", "ن م ذ ج", "حرم")',
-      },
-      dictionary: {
-        type: 'string',
-        description: 'Dictionary name exactly as shown in discover_words (e.g., "لسان العرب", "معجم المغني")',
-      },
-      words: {
-        type: 'array',
-        description:
-          'Optional: specific words to get context for. If not provided, returns general segments.',
-        items: {
-          type: 'string',
-          description: 'Arabic word with diacritics',
-        },
-      },
-      context_words: {
-        type: 'string',
-        description:
-          'How much content to return. Use "full" for short definitions (< 500 chars), or a number like "40" for longer ones.',
+      id: {
+        type: 'number',
+        description: 'The entry ID from discover_words (the number in square brackets)',
       },
     },
-    required: ['root', 'dictionary', 'context_words'],
+    required: ['id'],
   },
 };
 
@@ -113,5 +92,5 @@ Fetch definition content. Use the EXACT root name as shown in discover_words res
  */
 export const smartDictionaryTools: Tool[] = [
   discoverWordsTool,
-  getWordSegmentsTool,
+  getEntryTool,
 ];

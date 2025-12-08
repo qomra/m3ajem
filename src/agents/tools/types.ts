@@ -44,6 +44,7 @@ export interface ToolResult {
 export interface ToolExecutionResult {
   text: string; // Result text for LLM
   sources?: Source[]; // Sources to attach to message
+  rootId?: number; // ID of the entry (for tracking read vs discovered)
 }
 
 // Tool Executor Interface

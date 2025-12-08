@@ -1,6 +1,6 @@
 import { BaseAgent, AgentRequest, AgentResponse, AgentThought } from './BaseAgent';
 import type { BaseProvider, ProviderMessage } from '@services/ai/BaseProvider';
-import { discoverWordsTool, getWordSegmentsTool } from './tools/smartDictionaryTools';
+import { discoverWordsTool, getEntryTool } from './tools/smartDictionaryTools';
 import { webSearchTool } from './tools/webSearchTools';
 import { SmartDictionaryToolExecutor } from './tools/SmartDictionaryToolExecutor';
 import { WebSearchToolExecutor } from './tools/WebSearchToolExecutor';
@@ -12,7 +12,7 @@ import { SourceType, type Source, type DictionarySource, type IndexedSource, typ
 
 /**
  * Smart Dictionary Agent
- * Uses optimized 2-tool system: discover_words + get_word_segments
+ * Uses optimized 2-tool system: discover_words + get_entry (ID-based)
  */
 export class SmartDictionaryAgent extends BaseAgent {
   private db: SQLiteDatabase;
@@ -89,7 +89,10 @@ export class SmartDictionaryAgent extends BaseAgent {
   private getToolLabel(toolName: string, args: Record<string, any>): string {
     if (toolName === 'discover_words') {
       return 'استكشاف المعاجم';
+    } else if (toolName === 'get_entry') {
+      return `قراءة مدخل [${args.id}]`;
     } else if (toolName === 'get_word_segments') {
+      // Legacy
       const dict = args.dictionary || '';
       return `قراءة من ${dict}`;
     } else if (toolName === 'search_web') {
@@ -109,7 +112,10 @@ export class SmartDictionaryAgent extends BaseAgent {
         const words = tc.arguments.words || [];
         const wordList = Array.isArray(words) ? words.join('، ') : words;
         return `البحث عن "${wordList}" في المعاجم...`;
+      } else if (tc.name === 'get_entry') {
+        return `قراءة المدخل [${tc.arguments.id}]...`;
       } else if (tc.name === 'get_word_segments') {
+        // Legacy
         const { root, dictionary } = tc.arguments;
         return `قراءة تعريف "${root}" من ${dictionary}...`;
       } else if (tc.name === 'search_web') {
@@ -128,7 +134,7 @@ export class SmartDictionaryAgent extends BaseAgent {
     args: Record<string, any>
   ): Promise<ToolExecutionResult> {
     // Smart dictionary tools
-    if (toolName === 'discover_words' || toolName === 'get_word_segments') {
+    if (toolName === 'discover_words' || toolName === 'get_entry' || toolName === 'get_word_segments') {
       const executor = new SmartDictionaryToolExecutor(this.db, toolName);
       return executor.execute(args);
     }
@@ -141,136 +147,6 @@ export class SmartDictionaryAgent extends BaseAgent {
     return {
       text: `أداة غير معروفة: ${toolName}`,
       sources: [],
-    };
-  }
-
-  /**
-   * Parse source classification JSON from LLM response
-   * Returns { cited, related, cleanContent } or null if parsing fails
-   */
-  private parseSourceClassification(
-    responseContent: string,
-    allSources: Source[]
-  ): { cited: Source[]; related: Source[]; cleanContent: string } | null {
-    try {
-      // Look for <!--SOURCES ... --> block
-      const sourceBlockRegex = /<!--SOURCES\s*([\s\S]*?)-->/;
-      const match = responseContent.match(sourceBlockRegex);
-
-      if (!match) {
-        console.log('No SOURCES block found in response');
-        return null;
-      }
-
-      const jsonStr = match[1].trim();
-      const cleanContent = responseContent.replace(sourceBlockRegex, '').trim();
-
-      // Parse JSON (handle potential markdown code blocks)
-      let cleanJson = jsonStr;
-      if (jsonStr.startsWith('```')) {
-        cleanJson = jsonStr.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
-      }
-
-      const classification = JSON.parse(cleanJson);
-
-      if (!classification.cited || !classification.related) {
-        console.log('Invalid SOURCES JSON structure:', classification);
-        return null;
-      }
-
-      // Match source strings to actual Source objects
-      // Format expected: "DictionaryName - Root"
-      const matchSource = (sourceStr: string): Source | null => {
-        // Normalize Arabic text for comparison
-        const normalize = (s: string) => s.replace(/[\u064B-\u065F\u0670]/g, '').trim();
-        const normalizedInput = normalize(sourceStr);
-
-        for (const source of allSources) {
-          const dictSource = source as DictionarySource | IndexedSource;
-          if (dictSource.dictionaryName && dictSource.root) {
-            // Build match string: "المعجم الوسيط - قدر"
-            const matchStr = `${dictSource.dictionaryName} - ${normalize(dictSource.root)}`;
-            const normalizedMatch = normalize(matchStr);
-
-            // Check if input contains BOTH dictionary AND root
-            const inputHasDict = normalizedInput.includes(normalize(dictSource.dictionaryName));
-            const inputHasRoot = normalizedInput.includes(normalize(dictSource.root));
-
-            if ((inputHasDict && inputHasRoot) ||
-                normalizedInput === normalizedMatch ||
-                normalizedInput.includes(normalizedMatch) ||
-                normalizedMatch.includes(normalizedInput)) {
-              return source;
-            }
-          }
-          // Fallback: check title
-          if (source.title && normalize(sourceStr).includes(normalize(source.title))) {
-            return source;
-          }
-        }
-        return null;
-      };
-
-      const citedSources: Source[] = [];
-      const relatedSources: Source[] = [];
-      const usedIds = new Set<string>();
-
-      // Process cited sources
-      for (const sourceStr of classification.cited) {
-        const source = matchSource(sourceStr);
-        if (source && !usedIds.has(source.id)) {
-          citedSources.push(source);
-          usedIds.add(source.id);
-        }
-      }
-
-      // Process related sources (can include unread sources from discover_words)
-      for (const sourceStr of classification.related) {
-        const source = matchSource(sourceStr);
-        if (source && !usedIds.has(source.id)) {
-          relatedSources.push(source);
-          usedIds.add(source.id);
-        } else if (!source && sourceStr.includes(' - ')) {
-          // Create a placeholder source for unread discover_words entries
-          const [dictName, root] = sourceStr.split(' - ').map((s: string) => s.trim());
-          if (dictName && root) {
-            const placeholderId = `discover-${dictName}-${root}-${Date.now()}`;
-            if (!usedIds.has(placeholderId)) {
-              const placeholderSource: DictionarySource = {
-                id: placeholderId,
-                type: SourceType.DICTIONARY,
-                title: `${root} - ${dictName}`,
-                snippet: 'مصدر متخصص ذو صلة',
-                dictionaryName: dictName,
-                root: root,
-                definition: '',
-              };
-              relatedSources.push(placeholderSource);
-              usedIds.add(placeholderId);
-            }
-          }
-        }
-      }
-
-      console.log(`Parsed sources - cited: ${citedSources.length}, related: ${relatedSources.length}`);
-      return { cited: citedSources, related: relatedSources, cleanContent };
-
-    } catch (error) {
-      console.error('Error parsing source classification:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Fallback: categorize sources when LLM doesn't provide classification
-   */
-  private fallbackSourceCategorization(
-    allSources: Source[]
-  ): { cited: Source[]; related: Source[] } {
-    // Simple fallback: all sources are cited (they were all read)
-    return {
-      cited: allSources.slice(0, 5),
-      related: allSources.slice(5, 10),
     };
   }
 
@@ -290,7 +166,7 @@ export class SmartDictionaryAgent extends BaseAgent {
       }
 
       // Build tools array
-      const tools: Tool[] = [discoverWordsTool, getWordSegmentsTool];
+      const tools: Tool[] = [discoverWordsTool, getEntryTool];
       if (hasWebSearch) {
         tools.push(webSearchTool);
       }
@@ -382,36 +258,20 @@ export class SmartDictionaryAgent extends BaseAgent {
         response = await this.provider.sendMessageWithTools(messages, tools);
       }
 
-      // Parse source classification from LLM response
-      const responseContent = response.content || '';
-      const parsed = this.parseSourceClassification(responseContent, allSources);
-
-      let citedSources: Source[];
-      let relatedSources: Source[];
-      let cleanContent: string;
-
-      if (parsed) {
-        // LLM provided classification
-        citedSources = parsed.cited;
-        relatedSources = parsed.related;
-        cleanContent = parsed.cleanContent;
-      } else {
-        // Fallback: use simple categorization
-        const fallback = this.fallbackSourceCategorization(allSources);
-        citedSources = fallback.cited;
-        relatedSources = fallback.related;
-        cleanContent = responseContent;
-      }
+      // ID-based source tracking - simpler and more reliable
+      // All sources from get_entry calls are cited (they were read)
+      const citedSources = allSources;
+      const relatedSources: Source[] = []; // Could be populated from discover_words if needed
 
       const duration = Date.now() - startTime;
 
-      console.log(`SmartDictionaryAgent: ${allSources.length} total, ${citedSources.length} cited, ${relatedSources.length} related, ${duration}ms`);
+      console.log(`SmartDictionaryAgent: ${citedSources.length} cited sources, ${duration}ms`);
 
       return {
         success: true,
-        content: cleanContent,
+        content: response.content || '',
         sources: citedSources,
-        relatedSources: relatedSources.slice(0, 10), // Limit to 10 related items
+        relatedSources,
         thoughts,
         duration,
       };

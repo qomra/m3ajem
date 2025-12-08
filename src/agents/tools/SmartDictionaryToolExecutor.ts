@@ -6,7 +6,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 /**
  * Tool executor for smart dictionary tools
- * Handles: discover_words, get_word_segments
+ * Handles: discover_words, get_entry (ID-based)
  */
 export class SmartDictionaryToolExecutor implements ToolExecutor {
   private discoverService: DiscoverWordsService;
@@ -23,7 +23,10 @@ export class SmartDictionaryToolExecutor implements ToolExecutor {
     switch (this.toolName) {
       case 'discover_words':
         return this.executeDiscoverWords(args);
+      case 'get_entry':
+        return this.executeGetEntry(args);
       case 'get_word_segments':
+        // Legacy support - keep for backwards compatibility
         return this.executeGetWordSegments(args);
       default:
         return {
@@ -87,7 +90,59 @@ export class SmartDictionaryToolExecutor implements ToolExecutor {
   }
 
   /**
-   * Execute get_word_segments tool
+   * Execute get_entry tool - ID-based lookup (new protocol)
+   */
+  private async executeGetEntry(args: Record<string, any>): Promise<ToolExecutionResult> {
+    const { id } = args;
+
+    if (!id || typeof id !== 'number') {
+      return {
+        text: 'يجب تحديد رقم المعرف (id)',
+        sources: [],
+      };
+    }
+
+    console.log('get_entry:', { id });
+
+    try {
+      const result = await this.segmentsService.getWordSegmentsById(id);
+
+      if (!result) {
+        return {
+          text: `لم يتم العثور على المعرف ${id}`,
+          sources: [],
+        };
+      }
+
+      const text = this.segmentsService.formatResultForLLM(result);
+
+      // Build source
+      const source: DictionarySource = {
+        id: `entry-${id}`,
+        type: SourceType.DICTIONARY,
+        title: `${result.root} - ${result.dictionaryName}`,
+        snippet: result.content.substring(0, 100) + '...',
+        dictionaryName: result.dictionaryName,
+        root: result.root,
+        definition: result.content,
+      };
+
+      return {
+        text,
+        sources: [source],
+        rootId: id, // Include ID for tracking
+      };
+    } catch (error) {
+      console.error('get_entry error:', error);
+      return {
+        text: `خطأ في جلب المحتوى: ${error instanceof Error ? error.message : String(error)}`,
+        sources: [],
+      };
+    }
+  }
+
+  /**
+   * Execute get_word_segments tool (legacy - for backwards compatibility)
    */
   private async executeGetWordSegments(args: Record<string, any>): Promise<ToolExecutionResult> {
     const { root, dictionary, words, context_words } = args;

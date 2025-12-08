@@ -121,6 +121,75 @@ export class WordSegmentsService {
   }
 
   /**
+   * Get root definition by ID - simple and unambiguous
+   */
+  async getRootById(rootId: number): Promise<{ rootId: number; root: string; dictionaryName: string; definition: string } | null> {
+    const result = await this.db.getAllAsync<{
+      root_id: number;
+      root: string;
+      definition: string;
+      dictionary_name: string;
+    }>(
+      `SELECT
+        r.id as root_id,
+        r.root,
+        r.definition,
+        d.name as dictionary_name
+      FROM roots r
+      INNER JOIN dictionaries d ON r.dictionary_id = d.id
+      WHERE r.id = ?
+      LIMIT 1`,
+      [rootId]
+    );
+
+    if (result.length > 0) {
+      const row = result[0];
+      return {
+        rootId: row.root_id,
+        root: row.root,
+        dictionaryName: row.dictionary_name,
+        definition: row.definition,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Get word segments by root ID - clean ID-based API
+   */
+  async getWordSegmentsById(
+    rootId: number,
+    contextWords: number | 'full' = 'full'
+  ): Promise<WordSegmentsResult | null> {
+    const rootData = await this.getRootById(rootId);
+
+    if (!rootData) {
+      return null;
+    }
+
+    // If "full" or definition is short, return full definition
+    if (contextWords === 'full' || rootData.definition.length < 1000) {
+      return {
+        root: rootData.root,
+        dictionaryName: rootData.dictionaryName,
+        isFullDefinition: true,
+        content: rootData.definition,
+        totalLength: rootData.definition.length,
+      };
+    }
+
+    // For long definitions, return truncated
+    return {
+      root: rootData.root,
+      dictionaryName: rootData.dictionaryName,
+      isFullDefinition: false,
+      content: rootData.definition.substring(0, 2000) + '...',
+      totalLength: rootData.definition.length,
+    };
+  }
+
+  /**
    * Get root definition from database with flexible matching
    * Tries multiple strategies: exact, partial, and format variations
    */
