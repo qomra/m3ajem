@@ -83,6 +83,9 @@ export class SmartDictionaryAgent extends BaseAgent {
     }
   }
 
+  // Cache for discovered entries: id -> {dictionary, root}
+  private discoveredEntries: Map<number, { dictionary: string; root: string }> = new Map();
+
   /**
    * Get user-friendly label for a tool (shown in مخطط البحث)
    */
@@ -90,7 +93,12 @@ export class SmartDictionaryAgent extends BaseAgent {
     if (toolName === 'discover_words') {
       return 'استكشاف المعاجم';
     } else if (toolName === 'get_entry') {
-      return `قراءة مدخل [${args.id}]`;
+      // Look up from discovered entries cache for friendly name
+      const entry = this.discoveredEntries.get(args.id);
+      if (entry) {
+        return `قراءة من ${entry.dictionary}`;
+      }
+      return `قراءة مدخل`;
     } else if (toolName === 'get_word_segments') {
       // Legacy
       const dict = args.dictionary || '';
@@ -99,6 +107,21 @@ export class SmartDictionaryAgent extends BaseAgent {
       return 'بحث في الإنترنت';
     }
     return 'معالجة';
+  }
+
+  /**
+   * Parse discover_words output to extract entry IDs and metadata
+   */
+  private parseDiscoveredEntries(text: string): void {
+    // Pattern: [ID] DictionaryName - Root
+    const pattern = /\[(\d+)\]\s+([^\-\n]+)\s*-\s*([^\n\(]+)/g;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const id = parseInt(match[1]);
+      const dictionary = match[2].trim();
+      const root = match[3].trim();
+      this.discoveredEntries.set(id, { dictionary, root });
+    }
   }
 
   /**
@@ -113,7 +136,11 @@ export class SmartDictionaryAgent extends BaseAgent {
         const wordList = Array.isArray(words) ? words.join('، ') : words;
         return `البحث عن "${wordList}" في المعاجم...`;
       } else if (tc.name === 'get_entry') {
-        return `قراءة المدخل [${tc.arguments.id}]...`;
+        const entry = this.discoveredEntries.get(tc.arguments.id);
+        if (entry) {
+          return `قراءة تعريف "${entry.root}" من ${entry.dictionary}...`;
+        }
+        return `قراءة المحتوى...`;
       } else if (tc.name === 'get_word_segments') {
         // Legacy
         const { root, dictionary } = tc.arguments;
@@ -152,6 +179,10 @@ export class SmartDictionaryAgent extends BaseAgent {
 
   async processMessage(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
+
+    // Clear caches for new request
+    this.discoveredEntries.clear();
+    const readIds = new Set<number>();
 
     try {
       // Initialize system prompt from DB
@@ -217,6 +248,16 @@ export class SmartDictionaryAgent extends BaseAgent {
             try {
               const result = await this.executeTool(toolCall.name, toolCall.arguments);
 
+              // Parse discover_words output to cache entry metadata
+              if (toolCall.name === 'discover_words') {
+                this.parseDiscoveredEntries(result.text);
+              }
+
+              // Track read IDs from get_entry calls
+              if (toolCall.name === 'get_entry' && toolCall.arguments.id) {
+                readIds.add(toolCall.arguments.id);
+              }
+
               if (result.sources && result.sources.length > 0) {
                 allSources.push(...result.sources);
               }
@@ -258,20 +299,38 @@ export class SmartDictionaryAgent extends BaseAgent {
         response = await this.provider.sendMessageWithTools(messages, tools);
       }
 
-      // ID-based source tracking - simpler and more reliable
-      // All sources from get_entry calls are cited (they were read)
+      // ID-based source tracking
+      // Cited = all sources from get_entry calls (they were read)
+      // Related = discovered but not read entries (see also)
       const citedSources = allSources;
-      const relatedSources: Source[] = []; // Could be populated from discover_words if needed
+
+      // Build related sources from discovered but unread entries
+      const relatedSources: Source[] = [];
+      for (const [id, entry] of this.discoveredEntries) {
+        if (!readIds.has(id)) {
+          // This entry was discovered but not read - add to "see also"
+          const relatedSource: DictionarySource = {
+            id: `discovered-${id}`,
+            type: SourceType.DICTIONARY,
+            title: `${entry.root} - ${entry.dictionary}`,
+            snippet: 'مصدر ذو صلة',
+            dictionaryName: entry.dictionary,
+            root: entry.root,
+            definition: '',
+          };
+          relatedSources.push(relatedSource);
+        }
+      }
 
       const duration = Date.now() - startTime;
 
-      console.log(`SmartDictionaryAgent: ${citedSources.length} cited sources, ${duration}ms`);
+      console.log(`SmartDictionaryAgent: ${citedSources.length} cited, ${relatedSources.length} related, ${duration}ms`);
 
       return {
         success: true,
         content: response.content || '',
         sources: citedSources,
-        relatedSources,
+        relatedSources: relatedSources.slice(0, 10), // Limit to 10 "see also" items
         thoughts,
         duration,
       };
