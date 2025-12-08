@@ -8,7 +8,7 @@ import { buildSmartDictionaryPrompt } from '@/prompts/system/smartDictionaryProm
 import { SerpAPIStorage } from '@services/storage/serpApiStorage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Tool, ToolExecutionResult } from './tools/types';
-import type { Source, DictionarySource, IndexedSource, WebSource } from '@/types/sources';
+import { SourceType, type Source, type DictionarySource, type IndexedSource, type WebSource } from '@/types/sources';
 
 /**
  * Smart Dictionary Agent
@@ -145,69 +145,121 @@ export class SmartDictionaryAgent extends BaseAgent {
   }
 
   /**
-   * Extract cited sources from response
+   * Parse source classification JSON from LLM response
+   * Returns { cited, related, cleanContent } or null if parsing fails
    */
-  private async extractCitedSources(
+  private parseSourceClassification(
     responseContent: string,
     allSources: Source[]
-  ): Promise<Source[]> {
-    if (allSources.length === 0) {
-      return [];
-    }
-
-    if (allSources.length <= 3) {
-      return allSources;
-    }
-
+  ): { cited: Source[]; related: Source[]; cleanContent: string } | null {
     try {
-      const sourceList = allSources.map((source, index) => {
-        let description = `[${index + 1}] ${source.title}`;
-        if (source.type === 'dictionary' || source.type === 'indexed') {
+      // Look for <!--SOURCES ... --> block
+      const sourceBlockRegex = /<!--SOURCES\s*([\s\S]*?)-->/;
+      const match = responseContent.match(sourceBlockRegex);
+
+      if (!match) {
+        console.log('No SOURCES block found in response');
+        return null;
+      }
+
+      const jsonStr = match[1].trim();
+      const cleanContent = responseContent.replace(sourceBlockRegex, '').trim();
+
+      // Parse JSON (handle potential markdown code blocks)
+      let cleanJson = jsonStr;
+      if (jsonStr.startsWith('```')) {
+        cleanJson = jsonStr.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+      }
+
+      const classification = JSON.parse(cleanJson);
+
+      if (!classification.cited || !classification.related) {
+        console.log('Invalid SOURCES JSON structure:', classification);
+        return null;
+      }
+
+      // Match source strings to actual Source objects
+      const matchSource = (sourceStr: string): Source | null => {
+        const lowerStr = sourceStr.toLowerCase();
+        // Try exact match first
+        for (const source of allSources) {
           const dictSource = source as DictionarySource | IndexedSource;
-          description += ` (${dictSource.dictionaryName})`;
-        } else if (source.type === 'web') {
-          const webSource = source as WebSource;
-          description += ` - ${webSource.url}`;
+          if (dictSource.dictionaryName && dictSource.root) {
+            const matchStr = `${dictSource.dictionaryName} - ${dictSource.root}`.toLowerCase();
+            if (lowerStr.includes(dictSource.dictionaryName.toLowerCase()) ||
+                matchStr.includes(lowerStr) ||
+                lowerStr.includes(matchStr)) {
+              return source;
+            }
+          }
+          if (source.title && lowerStr.includes(source.title.toLowerCase())) {
+            return source;
+          }
         }
-        return description;
-      }).join('\n');
+        return null;
+      };
 
-      const citationPrompt = `بناءً على إجابتك، حدد أرقام المصادر المستخدمة وذات الصلة.
+      const citedSources: Source[] = [];
+      const relatedSources: Source[] = [];
+      const usedIds = new Set<string>();
 
-المصادر:
-${sourceList}
-
-إجابتك:
-${responseContent.substring(0, 1500)}${responseContent.length > 1500 ? '...' : ''}
-
-أجب بأرقام المصادر مفصولة بفواصل (مثال: 1, 3, 5). المصادر المستخدمة أولاً ثم ذات الصلة.`;
-
-      const citationResponse = await this.provider.sendMessage([
-        { role: 'user', content: citationPrompt },
-      ]);
-
-      const responseText = citationResponse.content || '';
-
-      if (responseText.includes('لا شيء') || responseText.toLowerCase().includes('none')) {
-        return [];
+      // Process cited sources
+      for (const sourceStr of classification.cited) {
+        const source = matchSource(sourceStr);
+        if (source && !usedIds.has(source.id)) {
+          citedSources.push(source);
+          usedIds.add(source.id);
+        }
       }
 
-      const numbers = responseText.match(/\d+/g);
-      if (!numbers || numbers.length === 0) {
-        return allSources.slice(0, 5); // Fallback: top 5
+      // Process related sources (can include unread sources from discover_words)
+      for (const sourceStr of classification.related) {
+        const source = matchSource(sourceStr);
+        if (source && !usedIds.has(source.id)) {
+          relatedSources.push(source);
+          usedIds.add(source.id);
+        } else if (!source && sourceStr.includes(' - ')) {
+          // Create a placeholder source for unread discover_words entries
+          const [dictName, root] = sourceStr.split(' - ').map((s: string) => s.trim());
+          if (dictName && root) {
+            const placeholderId = `discover-${dictName}-${root}-${Date.now()}`;
+            if (!usedIds.has(placeholderId)) {
+              const placeholderSource: DictionarySource = {
+                id: placeholderId,
+                type: SourceType.DICTIONARY,
+                title: `${root} - ${dictName}`,
+                snippet: 'مصدر متخصص ذو صلة',
+                dictionaryName: dictName,
+                root: root,
+                definition: '',
+              };
+              relatedSources.push(placeholderSource);
+              usedIds.add(placeholderId);
+            }
+          }
+        }
       }
 
-      const citedIndices = numbers
-        .map((n) => parseInt(n, 10) - 1)
-        .filter((i) => i >= 0 && i < allSources.length);
-
-      const uniqueIndices = [...new Set(citedIndices)];
-      return uniqueIndices.map((i) => allSources[i]);
+      console.log(`Parsed sources - cited: ${citedSources.length}, related: ${relatedSources.length}`);
+      return { cited: citedSources, related: relatedSources, cleanContent };
 
     } catch (error) {
-      console.error('Error extracting cited sources:', error);
-      return allSources.slice(0, 5);
+      console.error('Error parsing source classification:', error);
+      return null;
     }
+  }
+
+  /**
+   * Fallback: categorize sources when LLM doesn't provide classification
+   */
+  private fallbackSourceCategorization(
+    allSources: Source[]
+  ): { cited: Source[]; related: Source[] } {
+    // Simple fallback: all sources are cited (they were all read)
+    return {
+      cited: allSources.slice(0, 5),
+      related: allSources.slice(5, 10),
+    };
   }
 
   async processMessage(request: AgentRequest): Promise<AgentResponse> {
@@ -318,15 +370,26 @@ ${responseContent.substring(0, 1500)}${responseContent.length > 1500 ? '...' : '
         response = await this.provider.sendMessageWithTools(messages, tools);
       }
 
-      // Extract cited sources (المصادر)
-      const citedSources = await this.extractCitedSources(
-        response.content || '',
-        allSources
-      );
+      // Parse source classification from LLM response
+      const responseContent = response.content || '';
+      const parsed = this.parseSourceClassification(responseContent, allSources);
 
-      // Get related sources that weren't cited (أنظر أيضاً)
-      const citedIds = new Set(citedSources.map((s) => s.id));
-      const relatedSources = allSources.filter((s) => !citedIds.has(s.id));
+      let citedSources: Source[];
+      let relatedSources: Source[];
+      let cleanContent: string;
+
+      if (parsed) {
+        // LLM provided classification
+        citedSources = parsed.cited;
+        relatedSources = parsed.related;
+        cleanContent = parsed.cleanContent;
+      } else {
+        // Fallback: use simple categorization
+        const fallback = this.fallbackSourceCategorization(allSources);
+        citedSources = fallback.cited;
+        relatedSources = fallback.related;
+        cleanContent = responseContent;
+      }
 
       const duration = Date.now() - startTime;
 
@@ -334,7 +397,7 @@ ${responseContent.substring(0, 1500)}${responseContent.length > 1500 ? '...' : '
 
       return {
         success: true,
-        content: response.content,
+        content: cleanContent,
         sources: citedSources,
         relatedSources: relatedSources.slice(0, 10), // Limit to 10 related items
         thoughts,
