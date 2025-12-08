@@ -344,7 +344,7 @@ async def forward_to_provider(
             message = choice["message"]
 
             result = {
-                "content": message.get("content", ""),
+                "content": message.get("content") or "",
                 "tool_calls": [],
             }
 
