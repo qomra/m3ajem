@@ -48,7 +48,16 @@ export class WordSegmentsService {
     contextWords: number | 'full' = 40
   ): Promise<WordSegmentsResult | null> {
     // Get the root definition
-    const rootData = await this.getRootDefinition(root, dictionaryName);
+    let rootData = await this.getRootDefinition(root, dictionaryName);
+
+    // If not found, try with swapped parameters (LLM sometimes confuses root/dictionary)
+    if (!rootData) {
+      const swappedData = await this.getRootDefinition(dictionaryName, root);
+      if (swappedData) {
+        console.log(`WordSegmentsService: Found with swapped params - root="${dictionaryName}" dict="${root}"`);
+        rootData = swappedData;
+      }
+    }
 
     if (!rootData) {
       return null;

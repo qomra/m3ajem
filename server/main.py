@@ -265,14 +265,22 @@ async def forward_to_provider(
 
             # Transform messages to OpenAI format
             # Need to convert tool_calls in message history to OpenAI's format
+            # IMPORTANT: Preserve original tool_call IDs to avoid duplicates across iterations
             transformed_messages = []
+            tool_call_counter = 0  # Global counter for generating unique IDs when needed
+
             for msg in messages:
                 # Handle tool role messages specially
                 if msg["role"] == "tool":
+                    # Use the original tool_call_id, or generate unique one if missing
+                    original_id = msg.get("tool_call_id")
+                    if not original_id:
+                        original_id = f"call_gen_{tool_call_counter}"
+                        tool_call_counter += 1
                     transformed_msg = {
                         "role": "tool",
                         "content": msg.get("content", ""),
-                        "tool_call_id": msg.get("tool_call_id", "call_0")
+                        "tool_call_id": original_id
                     }
                 else:
                     transformed_msg = {
@@ -284,7 +292,8 @@ async def forward_to_provider(
                     if "tool_calls" in msg and msg["tool_calls"]:
                         transformed_msg["tool_calls"] = [
                             {
-                                "id": f"call_{i}",  # Generate a simple ID
+                                # Preserve original ID, or generate unique one
+                                "id": tc.get("id") or f"call_gen_{tool_call_counter + i}",
                                 "type": "function",
                                 "function": {
                                     "name": tc.get("name"),
@@ -293,6 +302,7 @@ async def forward_to_provider(
                             }
                             for i, tc in enumerate(msg["tool_calls"])
                         ]
+                        tool_call_counter += len(msg["tool_calls"])
 
                 transformed_messages.append(transformed_msg)
 
