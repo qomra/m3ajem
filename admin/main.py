@@ -971,9 +971,9 @@ async def conversation_detail(
         if not conv:
             return HTMLResponse(content="<h1>Conversation not found</h1>", status_code=404)
 
-        # Get messages with their IDs
+        # Get messages with their IDs, sources, and related_sources
         messages = db.execute(text("""
-            SELECT id, role, content, timestamp FROM messages
+            SELECT id, role, content, timestamp, sources, related_sources FROM messages
             WHERE conversation_id = :id
             ORDER BY timestamp ASC
         """), {"id": conversation_id}).fetchall()
@@ -984,6 +984,8 @@ async def conversation_detail(
             role = msg[1]
             content = msg[2] or ""
             timestamp = msg[3].strftime('%H:%M:%S') if msg[3] else ''
+            sources_json = msg[4] or "[]"
+            related_sources_json = msg[5] or "[]"
 
             role_class = "user" if role == "user" else "assistant"
             role_label = "👤 المستخدم" if role == "user" else "🤖 المساعد"
@@ -1043,6 +1045,44 @@ async def conversation_detail(
             else:
                 content_display = '<div class="message-content no-content">[No content]</div>'
 
+            # Build sources display for assistant messages
+            sources_html = ""
+            if role == "assistant":
+                try:
+                    sources_list = json.loads(sources_json) if sources_json else []
+                    related_list = json.loads(related_sources_json) if related_sources_json else []
+
+                    if sources_list or related_list:
+                        sources_html = '<div class="sources-section">'
+
+                        if sources_list:
+                            sources_html += '<div class="sources-group"><strong>📚 المصادر:</strong><ul>'
+                            for src in sources_list[:10]:
+                                title = src.get('title', 'Unknown')
+                                dict_name = src.get('dictionaryName', '')
+                                src_type = src.get('type', '')
+                                sources_html += f'<li><span class="source-title">{title}</span>'
+                                if dict_name:
+                                    sources_html += f' <span class="source-dict">({dict_name})</span>'
+                                sources_html += f' <span class="source-type">[{src_type}]</span></li>'
+                            sources_html += '</ul></div>'
+
+                        if related_list:
+                            sources_html += '<div class="sources-group related"><strong>👁️ أنظر أيضاً:</strong><ul>'
+                            for src in related_list[:10]:
+                                title = src.get('title', 'Unknown')
+                                dict_name = src.get('dictionaryName', '')
+                                src_type = src.get('type', '')
+                                sources_html += f'<li><span class="source-title">{title}</span>'
+                                if dict_name:
+                                    sources_html += f' <span class="source-dict">({dict_name})</span>'
+                                sources_html += f' <span class="source-type">[{src_type}]</span></li>'
+                            sources_html += '</ul></div>'
+
+                        sources_html += '</div>'
+                except Exception as e:
+                    sources_html = f'<div class="sources-error">Error parsing sources: {e}</div>'
+
             messages_html += f"""
             <div class="message {role_class}">
                 <div class="message-header">
@@ -1051,6 +1091,7 @@ async def conversation_detail(
                 </div>
                 {content_display}
                 {tool_calls_html}
+                {sources_html}
             </div>
             """
 
@@ -1183,6 +1224,46 @@ async def conversation_detail(
                 }}
                 .tool-result-details summary:hover {{
                     color: #fff;
+                }}
+                .sources-section {{
+                    margin-top: 15px;
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                    padding-top: 12px;
+                }}
+                .sources-group {{
+                    background: rgba(16, 163, 127, 0.1);
+                    border: 1px solid rgba(16, 163, 127, 0.3);
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-bottom: 10px;
+                }}
+                .sources-group.related {{
+                    background: rgba(156, 39, 176, 0.1);
+                    border: 1px solid rgba(156, 39, 176, 0.3);
+                }}
+                .sources-group ul {{
+                    margin: 8px 0 0 20px;
+                    padding: 0;
+                }}
+                .sources-group li {{
+                    margin: 4px 0;
+                    font-size: 0.9em;
+                }}
+                .source-title {{
+                    color: #fff;
+                    font-weight: 500;
+                }}
+                .source-dict {{
+                    color: #888;
+                    font-size: 0.85em;
+                }}
+                .source-type {{
+                    color: #667eea;
+                    font-size: 0.8em;
+                }}
+                .sources-error {{
+                    color: #ff6b6b;
+                    font-size: 0.9em;
                 }}
             </style>
         </head>

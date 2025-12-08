@@ -70,45 +70,12 @@ export class SmartDictionaryToolExecutor implements ToolExecutor {
       const results = await this.discoverService.discoverWords(words, roots);
       const text = this.discoverService.formatResultsForLLM(results);
 
-      // Build sources from discovery results
-      const sources: Source[] = [];
-      let sourceIndex = 0;
-
-      for (const result of results) {
-        // Add indexed word sources (highest priority - direct scroll)
-        for (const match of result.indexedMatches) {
-          const source: IndexedSource = {
-            id: `discover-indexed-${sourceIndex++}-${Date.now()}`,
-            type: SourceType.INDEXED,
-            title: match.word,
-            snippet: `${match.dictionaryName} - جذر: ${match.root}`,
-            word: match.word,
-            root: match.root,
-            dictionaryName: match.dictionaryName,
-            definition: '', // Not fetched yet
-            positions: [],
-          };
-          sources.push(source);
-        }
-
-        // Add root sources
-        for (const match of result.rootMatches) {
-          const source: DictionarySource = {
-            id: `discover-root-${sourceIndex++}-${Date.now()}`,
-            type: SourceType.DICTIONARY,
-            title: `${match.root} - ${match.dictionaryName}`,
-            snippet: `${match.definitionLength} حرف`,
-            dictionaryName: match.dictionaryName,
-            root: match.root,
-            definition: '', // Not fetched yet
-          };
-          sources.push(source);
-        }
-      }
-
+      // discover_words only shows what's AVAILABLE - it doesn't fetch content
+      // Sources should only be added by get_word_segments when content is actually read
+      // Return empty sources here - the LLM will call get_word_segments to fetch what it needs
       return {
         text,
-        sources,
+        sources: [],
       };
     } catch (error) {
       console.error('discover_words error:', error);
