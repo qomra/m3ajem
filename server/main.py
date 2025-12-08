@@ -117,6 +117,11 @@ async def chat(
     db = SessionLocal()
 
     try:
+        # Debug: Log incoming request info
+        msg_count = len(request.messages) if request.messages else 0
+        tools_count = len(request.tools) if request.tools else 0
+        logger.info(f"Chat request: messages={msg_count}, tools={tools_count}, conv_id={request.conversation_id}")
+
         # Check authentication
         user = get_current_user(authorization, db)
         if not user:
@@ -128,7 +133,7 @@ async def chat(
         # Only count rate limit for initial user questions, not tool execution follow-ups
         # Tool execution follow-ups have tool results in the message history
         is_tool_followup = False
-        if len(request.messages) >= 2:
+        if request.messages and len(request.messages) >= 2:
             # Check if the second-to-last message is an assistant message with tool calls
             # and the last message is a tool response
             second_last = request.messages[-2] if len(request.messages) >= 2 else None
@@ -346,10 +351,11 @@ async def forward_to_provider(
             if message.get("tool_calls"):
                 result["tool_calls"] = [
                     {
+                        "id": tc.get("id", f"call_{i}"),
                         "name": tc["function"]["name"],
                         "arguments": json.loads(tc["function"]["arguments"]),
                     }
-                    for tc in message["tool_calls"]
+                    for i, tc in enumerate(message["tool_calls"])
                 ]
 
             logger.info(f"OpenAI response: content_len={len(result.get('content', ''))}, tool_calls={len(result['tool_calls'])}")
