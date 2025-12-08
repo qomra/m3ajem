@@ -319,7 +319,8 @@ async def forward_to_provider(
                 ]
 
             # Log the request
-            logger.info(f"OpenAI request: model={config['model']}, messages={len(payload['messages'])}, tools={len(payload.get('tools', []))}")
+            tools_count = len(payload.get('tools') or [])
+            logger.info(f"OpenAI request: model={config['model']}, messages={len(payload['messages'])}, tools={tools_count}")
 
             response = await client.post(
                 f"{config['base_url']}/chat/completions",
