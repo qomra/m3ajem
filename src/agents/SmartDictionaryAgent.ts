@@ -125,6 +125,53 @@ export class SmartDictionaryAgent extends BaseAgent {
   }
 
   /**
+   * Parse LLM's source classification with IDs
+   * Format: <!--SOURCES {"cited": [123, 456], "related": [789]} -->
+   */
+  private parseSourceClassificationIds(content: string): {
+    citedIds: number[];
+    relatedIds: number[];
+    cleanContent: string;
+  } {
+    const defaultResult = { citedIds: [], relatedIds: [], cleanContent: content };
+
+    try {
+      const sourceBlockRegex = /<!--SOURCES\s*([\s\S]*?)-->/;
+      const match = content.match(sourceBlockRegex);
+
+      if (!match) {
+        console.log('No SOURCES block found in response');
+        return defaultResult;
+      }
+
+      const jsonStr = match[1].trim();
+      const cleanContent = content.replace(sourceBlockRegex, '').trim();
+
+      // Handle potential markdown code blocks
+      let cleanJson = jsonStr;
+      if (jsonStr.startsWith('```')) {
+        cleanJson = jsonStr.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+      }
+
+      const classification = JSON.parse(cleanJson);
+
+      const citedIds = Array.isArray(classification.cited)
+        ? classification.cited.filter((id: any) => typeof id === 'number')
+        : [];
+      const relatedIds = Array.isArray(classification.related)
+        ? classification.related.filter((id: any) => typeof id === 'number')
+        : [];
+
+      console.log(`Parsed source IDs - cited: ${citedIds.length}, related: ${relatedIds.length}`);
+      return { citedIds, relatedIds, cleanContent };
+
+    } catch (error) {
+      console.error('Error parsing source classification:', error);
+      return defaultResult;
+    }
+  }
+
+  /**
    * Generate a human-readable summary of tool calls
    * Used when LLM returns tool calls without content
    * User-friendly descriptions without exposing internal tool names
@@ -299,26 +346,48 @@ export class SmartDictionaryAgent extends BaseAgent {
         response = await this.provider.sendMessageWithTools(messages, tools);
       }
 
-      // ID-based source tracking
-      // Cited = all sources from get_entry calls (they were read)
-      // Related = discovered but not read entries (see also)
-      const citedSources = allSources;
+      // Parse LLM's source classification (ID-based)
+      const responseContent = response.content || '';
+      const { citedIds, relatedIds, cleanContent } = this.parseSourceClassificationIds(responseContent);
 
-      // Build related sources from discovered but unread entries
+      // Build cited sources from LLM's selection
+      const citedSources: Source[] = [];
+      for (const id of citedIds) {
+        // First check if we have it in allSources (actually read)
+        const readSource = allSources.find(s => s.id === `entry-${id}`);
+        if (readSource) {
+          citedSources.push(readSource);
+        } else {
+          // LLM cited an ID it didn't read - build from discovered cache
+          const entry = this.discoveredEntries.get(id);
+          if (entry) {
+            citedSources.push({
+              id: `entry-${id}`,
+              type: SourceType.DICTIONARY,
+              title: `${entry.root} - ${entry.dictionary}`,
+              snippet: '',
+              dictionaryName: entry.dictionary,
+              root: entry.root,
+              definition: '',
+            } as DictionarySource);
+          }
+        }
+      }
+
+      // Build related sources from LLM's selection
       const relatedSources: Source[] = [];
-      for (const [id, entry] of this.discoveredEntries) {
-        if (!readIds.has(id)) {
-          // This entry was discovered but not read - add to "see also"
-          const relatedSource: DictionarySource = {
-            id: `discovered-${id}`,
+      for (const id of relatedIds) {
+        const entry = this.discoveredEntries.get(id);
+        if (entry) {
+          relatedSources.push({
+            id: `related-${id}`,
             type: SourceType.DICTIONARY,
             title: `${entry.root} - ${entry.dictionary}`,
             snippet: 'مصدر ذو صلة',
             dictionaryName: entry.dictionary,
             root: entry.root,
             definition: '',
-          };
-          relatedSources.push(relatedSource);
+          } as DictionarySource);
         }
       }
 
@@ -328,7 +397,7 @@ export class SmartDictionaryAgent extends BaseAgent {
 
       return {
         success: true,
-        content: response.content || '',
+        content: cleanContent,
         sources: citedSources,
         relatedSources: relatedSources.slice(0, 10), // Limit to 10 "see also" items
         thoughts,
