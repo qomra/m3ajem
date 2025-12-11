@@ -376,6 +376,8 @@ async def forward_to_provider(
                 ]
 
             logger.info(f"OpenAI response: content_len={len(result.get('content', ''))}, tool_calls={len(result['tool_calls'])}")
+            if result["tool_calls"]:
+                logger.info(f"Returning tool_calls with IDs: {[tc.get('id') for tc in result['tool_calls']]}")
 
             return result
 
