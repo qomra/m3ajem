@@ -276,14 +276,34 @@ async def forward_to_provider(
                 elif msg.get("role") == "tool":
                     logger.info(f"Message {i} (tool) tool_call_id: {msg.get('tool_call_id')}")
 
-            for msg in messages:
+            # First pass: collect all tool_call IDs from assistant messages
+            # This ensures tool messages can reference the correct IDs
+            generated_ids = {}  # Maps (message_index, tool_index) -> generated_id
+            id_counter = 0
+
+            for msg_idx, msg in enumerate(messages):
+                if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                    for tc_idx, tc in enumerate(msg["tool_calls"]):
+                        if not tc.get("id"):
+                            generated_ids[(msg_idx, tc_idx)] = f"call_gen_{id_counter}"
+                            id_counter += 1
+
+            # Second pass: transform messages using consistent IDs
+            tool_result_idx = 0  # Track which tool result we're processing
+            last_assistant_idx = None
+
+            for msg_idx, msg in enumerate(messages):
                 # Handle tool role messages specially
                 if msg["role"] == "tool":
-                    # Use the original tool_call_id, or generate unique one if missing
                     original_id = msg.get("tool_call_id")
                     if not original_id:
-                        original_id = f"call_gen_{tool_call_counter}"
-                        tool_call_counter += 1
+                        # Find the corresponding assistant message's tool_call
+                        # Tool results follow their assistant message in order
+                        if last_assistant_idx is not None and (last_assistant_idx, tool_result_idx) in generated_ids:
+                            original_id = generated_ids[(last_assistant_idx, tool_result_idx)]
+                            tool_result_idx += 1
+                        else:
+                            original_id = f"call_gen_fallback_{msg_idx}"
                     transformed_msg = {
                         "role": "tool",
                         "content": msg.get("content", ""),
@@ -297,10 +317,12 @@ async def forward_to_provider(
 
                     # Transform tool_calls if present
                     if "tool_calls" in msg and msg["tool_calls"]:
+                        last_assistant_idx = msg_idx
+                        tool_result_idx = 0  # Reset for next batch of tool results
                         transformed_msg["tool_calls"] = [
                             {
-                                # Preserve original ID, or generate unique one
-                                "id": tc.get("id") or f"call_gen_{tool_call_counter + i}",
+                                # Use pre-generated ID or original
+                                "id": tc.get("id") or generated_ids.get((msg_idx, i), f"call_gen_{i}"),
                                 "type": "function",
                                 "function": {
                                     "name": tc.get("name"),
@@ -309,7 +331,6 @@ async def forward_to_provider(
                             }
                             for i, tc in enumerate(msg["tool_calls"])
                         ]
-                        tool_call_counter += len(msg["tool_calls"])
 
                 transformed_messages.append(transformed_msg)
 
