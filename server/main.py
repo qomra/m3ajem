@@ -368,7 +368,8 @@ async def forward_to_provider(
             if message.get("tool_calls"):
                 result["tool_calls"] = [
                     {
-                        "id": tc.get("id", f"call_{i}"),
+                        # Use 'or' to handle both missing key AND null value
+                        "id": tc.get("id") or f"call_{i}",
                         "name": tc["function"]["name"],
                         "arguments": json.loads(tc["function"]["arguments"]),
                     }
