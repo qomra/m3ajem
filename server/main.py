@@ -269,6 +269,13 @@ async def forward_to_provider(
             transformed_messages = []
             tool_call_counter = 0  # Global counter for generating unique IDs when needed
 
+            # Debug: Log incoming messages structure
+            for i, msg in enumerate(messages):
+                if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                    logger.info(f"Message {i} (assistant) tool_calls: {[{k: tc.get(k) for k in ['id', 'name']} for tc in msg.get('tool_calls', [])]}")
+                elif msg.get("role") == "tool":
+                    logger.info(f"Message {i} (tool) tool_call_id: {msg.get('tool_call_id')}")
+
             for msg in messages:
                 # Handle tool role messages specially
                 if msg["role"] == "tool":
