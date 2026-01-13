@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
+import {
+  MediaControl,
+  PlaybackState,
+  Command,
+  MediaControlEvent,
+} from 'expo-media-control';
 import audioMapData from '../data/audioMap.json';
 
 interface AudioFile {
@@ -93,20 +99,136 @@ let loadingWord: string | null = null;
 // Track if audio mode has been configured
 let audioModeConfigured = false;
 
+// Track if media controls have been initialized
+let mediaControlsInitialized = false;
+
+// Store reference for handling media control commands
+let audioStoreRef: (() => AudioState) | null = null;
+
 // Configure audio mode for background playback
+// Note: expo-media-control handles audio session, so we use minimal config here
 async function configureAudioMode() {
   if (audioModeConfigured) return;
 
   try {
+    // Use interruptionModeIOS: 'doNotMix' as required by media controls
     await Audio.setAudioModeAsync({
       staysActiveInBackground: true,
       playsInSilentModeIOS: true,
+      interruptionModeIOS: 1, // DoNotMix - required for lock screen controls
       shouldDuckAndroid: true,
       playThroughEarpieceAndroid: false,
+      interruptionModeAndroid: 1, // DoNotMix
     });
     audioModeConfigured = true;
+    console.log('[Audio] Audio mode configured');
   } catch (error) {
     console.error('Error configuring audio mode:', error);
+  }
+}
+
+// Initialize media controls for lock screen / control center
+async function initializeMediaControls(getState: () => AudioState) {
+  if (mediaControlsInitialized) {
+    console.log('[Audio] Media controls already initialized');
+    return;
+  }
+
+  console.log('[Audio] Initializing media controls...');
+
+  try {
+    // Store reference for command handling
+    audioStoreRef = getState;
+
+    await MediaControl.enableMediaControls({
+      capabilities: [
+        Command.PLAY,
+        Command.PAUSE,
+        Command.STOP,
+        Command.NEXT_TRACK,
+        Command.PREVIOUS_TRACK,
+      ],
+      ios: { skipInterval: 15 },
+      android: { skipInterval: 15 },
+    });
+
+    console.log('[Audio] Media controls enabled, adding listener...');
+
+    // Add listener for remote commands (lock screen buttons, headphone buttons)
+    MediaControl.addListener((event: MediaControlEvent) => {
+      console.log('[Audio] Received media command:', event.command);
+      if (!audioStoreRef) return;
+      const state = audioStoreRef();
+
+      switch (event.command) {
+        case Command.PLAY:
+          if (state.currentWord) {
+            state.playAudio(state.currentWord);
+          }
+          break;
+        case Command.PAUSE:
+          state.pauseAudio();
+          break;
+        case Command.STOP:
+          state.stopAudio();
+          break;
+        case Command.NEXT_TRACK:
+          state.playNext();
+          break;
+        case Command.PREVIOUS_TRACK:
+          state.playPrevious();
+          break;
+      }
+    });
+
+    mediaControlsInitialized = true;
+    console.log('[Audio] Media controls initialized successfully');
+  } catch (error) {
+    console.error('[Audio] Error initializing media controls:', error);
+  }
+}
+
+// Update lock screen metadata (Now Playing info)
+async function updateMediaMetadata(word: string, durationMs: number) {
+  try {
+    const metadata = {
+      title: word,
+      artist: 'لسان العرب',
+      album: 'المعجم',
+      duration: Math.round(durationMs / 1000), // Convert to seconds
+    };
+    console.log('[Audio] Setting media metadata:', metadata);
+    await MediaControl.updateMetadata(metadata);
+    console.log('[Audio] Media metadata set successfully');
+  } catch (error) {
+    console.error('[Audio] Error updating media metadata:', error);
+  }
+}
+
+// Update lock screen playback state
+async function updateMediaPlaybackState(
+  state: 'playing' | 'paused' | 'stopped',
+  positionMs?: number
+) {
+  try {
+    let playbackState: PlaybackState;
+    switch (state) {
+      case 'playing':
+        playbackState = PlaybackState.PLAYING;
+        break;
+      case 'paused':
+        playbackState = PlaybackState.PAUSED;
+        break;
+      case 'stopped':
+      default:
+        playbackState = PlaybackState.STOPPED;
+        break;
+    }
+
+    const positionSeconds = positionMs ? Math.round(positionMs / 1000) : 0;
+    await MediaControl.updatePlaybackState(playbackState, positionSeconds);
+  } catch (error) {
+    console.error('[Audio] Error updating playback state:', error);
   }
 }
 
@@ -528,7 +650,10 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   playAudio: async (word: string) => {
-    // Ensure audio mode is configured for background playback
+    // Initialize media controls for lock screen FIRST (sets up audio session)
+    await initializeMediaControls(get);
+
+    // Then configure expo-av audio mode
     await configureAudioMode();
 
     const { sound: currentSound, currentWord, isPlaying, downloadedFiles, audioMap } = get();
@@ -552,6 +677,8 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       loadingWord = word;
       set({ isPlaying: true });
       await currentSound.playAsync();
+      // Update lock screen state on resume
+      await updateMediaPlaybackState('playing', get().playbackPosition);
       // Wait a bit for playback to actually start
       await new Promise(resolve => setTimeout(resolve, 50));
       loadingWord = null;
@@ -645,6 +772,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       // Save state when new word starts playing
       get().savePlayerState();
 
+      // Update lock screen with track info
+      const status = await sound.getStatusAsync();
+      const duration = status.isLoaded ? (status.durationMillis || 0) : 0;
+      await updateMediaMetadata(word, duration);
+      await updateMediaPlaybackState('playing', savedPosition);
+
       // Wait for sound to actually start playing before enabling status updates
       await new Promise(resolve => setTimeout(resolve, 100));
       loadingWord = null;
@@ -653,6 +786,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       // OPTIMIZATION: Throttle position updates to every 100ms to reduce re-renders
       let lastPositionUpdate = 0;
       let lastStateSave = Date.now();
+      let lastLockScreenUpdate = Date.now();
       sound.setOnPlaybackStatusUpdate(async (status) => {
         if (status.isLoaded) {
           // Only update state if values actually changed to prevent unnecessary re-renders
@@ -672,6 +806,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
             if (now - lastStateSave >= 5000) {
               lastStateSave = now;
               get().savePlayerState();
+            }
+
+            // Update lock screen position every 1 second
+            if (now - lastLockScreenUpdate >= 1000) {
+              lastLockScreenUpdate = now;
+              updateMediaPlaybackState('playing', status.positionMillis);
             }
           }
 
@@ -716,10 +856,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   pauseAudio: async () => {
-    const { sound } = get();
+    const { sound, playbackPosition } = get();
     if (sound) {
       await sound.pauseAsync();
       set({ isPlaying: false });
+      // Update lock screen state
+      await updateMediaPlaybackState('paused', playbackPosition);
       // Save state when paused (preserves position)
       get().savePlayerState();
     }
@@ -737,6 +879,8 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         playbackPosition: 0,
         playbackDuration: 0,
       });
+      // Update lock screen state
+      await updateMediaPlaybackState('stopped');
       // Save state when stopped
       get().savePlayerState();
     }

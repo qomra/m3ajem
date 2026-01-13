@@ -53,7 +53,14 @@ module.exports = {
       "expo-secure-store",
       ["expo-sqlite", { "withSQLiteVecExtension": true }],
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-media-control",
+        {
+          "enableBackgroundAudio": true,
+          "audioSessionCategory": "playback"
+        }
+      ]
     ],
     experiments: {
       typedRoutes: true
