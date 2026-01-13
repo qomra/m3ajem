@@ -525,6 +525,49 @@ def print_stats(conn: sqlite3.Connection):
         print(f"    {name}: {count:,} roots")
     print("=" * 80)
 
+def load_lo3awi_only() -> List[Dict]:
+    """Load only lo3awi dictionaries."""
+    print("\n[1/3] Loading lo3awi dictionaries...")
+
+    base_dir = 'maajim'
+
+    # Load traditional dictionaries
+    ommat_path = os.path.join(base_dir, 'lo3awi', 'ommat.json')
+    ommat = load_json(ommat_path)
+    print(f"  ✓ Loaded {len(ommat)} traditional dictionaries from ommat.json")
+
+    # Add type field to traditional dictionaries
+    for dictionary in ommat:
+        dictionary['type'] = 'lo3awi'
+
+    # Load mofahras resources (لسان العرب full text)
+    mofahras_resources_path = os.path.join(base_dir, 'mofahras', 'resources.json')
+    if os.path.exists(mofahras_resources_path):
+        mofahras_resources = load_json(mofahras_resources_path)
+        print(f"  ✓ Loaded mofahras resources: {len(mofahras_resources.get('data', {}))} roots")
+
+        # Merge mofahras data with لسان العرب in ommat
+        لسان_dict = None
+        for i, dictionary in enumerate(ommat):
+            if dictionary['name'] == 'لسان العرب':
+                لسان_dict = dictionary
+                لسان_index = i
+                break
+
+        if لسان_dict:
+            original_count = len(لسان_dict['data'])
+            # REPLACE entire لسان العرب data with mofahras resources
+            لسان_dict['data'] = mofahras_resources.get('data', {})
+            ommat[لسان_index] = لسان_dict
+            print(f"  ✓ Merged mofahras into لسان العرب: {original_count} → {len(لسان_dict['data'])} roots")
+        else:
+            print(f"  ⚠️ Warning: لسان العرب not found in ommat.json")
+    else:
+        print(f"  ⚠️ Warning: {mofahras_resources_path} not found, skipping mofahras merge")
+
+    print(f"\n  Total lo3awi dictionaries: {len(ommat)}")
+    return ommat
+
 def load_moraqman_only() -> List[Dict]:
     """Load only moraqman dictionaries."""
     print("\n[1/3] Loading moraqman dictionaries...")
@@ -552,6 +595,135 @@ def load_moraqman_only() -> List[Dict]:
     print(f"\n  Total moraqman dictionaries: {len(moraqman_dicts)}")
     return moraqman_dicts
 
+
+def rebuild_lo3awi(db_path: str, lo3awi_dicts: List[Dict], index_data: Dict = None):
+    """Rebuild only lo3awi dictionaries in existing database."""
+    print(f"\n[2/3] Rebuilding lo3awi in {db_path}...")
+
+    # Create database if it doesn't exist
+    if not os.path.exists(db_path):
+        print(f"  Database not found, creating new database...")
+        conn = create_database(db_path)
+    else:
+        conn = sqlite3.connect(db_path)
+    
+    cursor = conn.cursor()
+
+    # Check if description column exists, add if not
+    cursor.execute("PRAGMA table_info(dictionaries)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'description' not in columns:
+        print("  Adding description column to dictionaries table...")
+        cursor.execute("ALTER TABLE dictionaries ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+
+    # Delete existing lo3awi dictionaries and their roots/words
+    print("  Deleting existing lo3awi data...")
+    cursor.execute('''
+        DELETE FROM words WHERE root_id IN (
+            SELECT r.id FROM roots r
+            JOIN dictionaries d ON r.dictionary_id = d.id
+            WHERE d.type = 'lo3awi'
+        )
+    ''')
+    cursor.execute('''
+        DELETE FROM roots WHERE dictionary_id IN (
+            SELECT id FROM dictionaries WHERE type = 'lo3awi'
+        )
+    ''')
+    cursor.execute("DELETE FROM dictionaries WHERE type = 'lo3awi'")
+    conn.commit()
+    print("  ✓ Existing lo3awi data deleted")
+
+    # Insert new lo3awi dictionaries
+    print("  Inserting new lo3awi dictionaries...")
+    for dictionary in lo3awi_dicts:
+        dict_name = dictionary['name']
+        dict_type = dictionary.get('type', 'lo3awi')
+        description = dictionary.get('description', '')
+        indexing_pattern = INDEXING_PATTERNS.get(dict_name, 'root_simple')
+
+        cursor.execute(
+            'INSERT INTO dictionaries (name, description, indexing_pattern, type) VALUES (?, ?, ?, ?)',
+            (dict_name, description, indexing_pattern, dict_type)
+        )
+        dict_id = cursor.lastrowid
+
+        # Get index data for this dictionary (only لسان العرب has index data currently)
+        dict_index = (index_data or {}).get(dict_name, {})
+        added_roots = set()
+
+        # Insert indexed roots first (if any)
+        if dict_index:
+            for root, word_data_list in dict_index.items():
+                definition = dictionary['data'].get(root, '')
+                if not definition:
+                    continue
+
+                # Calculate first word position
+                first_positions = [wd['first_position'] for wd in word_data_list]
+                first_position = min(first_positions) if first_positions else 0
+
+                # Insert root
+                cursor.execute(
+                    'INSERT INTO roots (dictionary_id, root, definition, first_word_position) VALUES (?, ?, ?, ?)',
+                    (dict_id, root, definition, first_position)
+                )
+                root_id = cursor.lastrowid
+                added_roots.add(root)
+
+                # Insert words
+                for word_data in word_data_list:
+                    all_positions_json = json.dumps(word_data['positions'])
+                    cursor.execute(
+                        'INSERT INTO words (root_id, word, first_position, all_positions) VALUES (?, ?, ?, ?)',
+                        (root_id, word_data['word'], word_data['first_position'], all_positions_json)
+                    )
+
+        # Insert non-indexed roots
+        root_count = 0
+        for root, definition in dictionary['data'].items():
+            if root in added_roots:
+                continue
+            if not definition:
+                continue
+
+            cursor.execute(
+                'INSERT INTO roots (dictionary_id, root, definition, first_word_position) VALUES (?, ?, ?, ?)',
+                (dict_id, root, definition, -1)
+            )
+            root_count += 1
+
+        total_roots = len(dict_index) + root_count
+        print(f"    ✓ {dict_name}: {len(dict_index)} indexed + {root_count} non-indexed = {total_roots} total roots")
+
+    conn.commit()
+
+    # Optimize
+    print("\n[3/3] Optimizing database...")
+    cursor.execute('ANALYZE')
+    cursor.execute('VACUUM')
+    conn.commit()
+    print("  ✓ Database optimized")
+
+    # Print lo3awi stats
+    cursor.execute('''
+        SELECT d.name, COUNT(r.id) as root_count
+        FROM dictionaries d
+        LEFT JOIN roots r ON d.id = r.dictionary_id
+        WHERE d.type = 'lo3awi'
+        GROUP BY d.id, d.name
+        ORDER BY d.name
+    ''')
+    stats = cursor.fetchall()
+
+    print("\nLo3awi Dictionary Stats:")
+    print("=" * 50)
+    for name, count in stats:
+        print(f"  {name}: {count:,} roots")
+    print("=" * 50)
+
+    conn.close()
 
 def rebuild_moraqman(db_path: str, moraqman_dicts: List[Dict]):
     """Rebuild only moraqman dictionaries in existing database."""
@@ -650,12 +822,15 @@ def main():
     """Main execution."""
     parser = argparse.ArgumentParser(description='Build M3ajem database')
     parser.add_argument('--moraqman', action='store_true', help='Only rebuild moraqman dictionaries')
+    parser.add_argument('--lo3awi', action='store_true', help='Only rebuild lo3awi dictionaries')
     args = parser.parse_args()
 
     print("=" * 80)
     print("M3AJEM DATABASE BUILD SCRIPT")
     if args.moraqman:
         print("MODE: Moraqman only")
+    elif args.lo3awi:
+        print("MODE: Lo3awi only")
     print("=" * 80)
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
@@ -666,6 +841,16 @@ def main():
         # Moraqman-only rebuild
         moraqman_dicts = load_moraqman_only()
         rebuild_moraqman(db_path, moraqman_dicts)
+    elif args.lo3awi:
+        # Lo3awi-only rebuild (skip position calculation for speed)
+        lo3awi_dicts = load_lo3awi_only()
+        
+        # Skip position calculation for --lo3awi (use empty index_data)
+        # Position calculation is time-consuming and only needed for لسان العرب word indexing
+        # Run full build if you need positions calculated
+        index_data = {}
+        
+        rebuild_lo3awi(db_path, lo3awi_dicts, index_data)
     else:
         # Full rebuild
         mofahras_dataset_path = 'maajim/mofahras/dataset.json'

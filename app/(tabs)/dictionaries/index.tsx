@@ -150,6 +150,7 @@ export default function DictionariesList() {
         visible={selectedDictionary !== null}
         dictionaryName={selectedDictionary || ''}
         rootsCount={selectedDictionary ? metadata?.[selectedDictionary]?.num_roots || 0 : 0}
+        description={selectedDictionary ? metadata?.[selectedDictionary]?.description : undefined}
         onClose={handleCloseInfo}
       />
     </View>

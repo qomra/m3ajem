@@ -17,7 +17,7 @@ export default function AudioTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'alphabetical' | 'longest' | 'shortest' | 'random'>('alphabetical');
   const [filterDownloaded, setFilterDownloaded] = useState<'all' | 'downloaded' | 'not-downloaded'>('all');
-  const [randomSeed, setRandomSeed] = useState(0);
+  const [randomSeed, setRandomSeed] = useState(() => Date.now());
 
   const availableRoots = useAudioStore(state => state.availableRoots);
   const loadDownloadedFiles = useAudioStore(state => state.loadDownloadedFiles);
@@ -26,7 +26,7 @@ export default function AudioTab() {
   const setAvailableRoots = useAudioStore(state => state.setAvailableRoots);
   const isDownloaded = useAudioStore(state => state.isDownloaded);
   const currentWord = useAudioStore(state => state.currentWord);
-  const searchRootInDictionary = useDictionaryStore(state => state.searchRootInDictionary);
+  const audioMap = useAudioStore(state => state.audioMap);
   const processedRoots = useDictionaryStore(state => state.processedRoots);
   const loadAllRoots = useDictionaryStore(state => state.loadAllRoots);
   const isLoadingRoots = useDictionaryStore(state => state.isLoadingRoots);
@@ -131,11 +131,11 @@ export default function AudioTab() {
     if (sortBy === 'alphabetical') {
       sorted.sort((a, b) => a.root.localeCompare(b.root, 'ar'));
     } else if (sortBy === 'longest' || sortBy === 'shortest') {
-      // Sort by content length
+      // Sort by audio file size (correlates with content length)
       sorted.sort((a, b) => {
-        const aContent = searchRootInDictionary(a.dictionaryName, a.root) || '';
-        const bContent = searchRootInDictionary(b.dictionaryName, b.root) || '';
-        const diff = bContent.length - aContent.length;
+        const aSize = audioMap[a.root]?.size || 0;
+        const bSize = audioMap[b.root]?.size || 0;
+        const diff = bSize - aSize;
         return sortBy === 'longest' ? diff : -diff;
       });
     } else if (sortBy === 'random') {
@@ -152,7 +152,7 @@ export default function AudioTab() {
     }
 
     return sorted;
-  }, [filteredRoots, sortBy, randomSeed, searchRootInDictionary, pathname]);
+  }, [filteredRoots, sortBy, randomSeed, audioMap, pathname]);
 
   // Only render the expensive FlatList when on the main audio list view
   const isOnMainList = pathname === '/audio';
