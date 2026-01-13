@@ -18,6 +18,17 @@ interface DownloadedFile {
   downloadedAt: number;
 }
 
+// Persisted player state (saved to disk)
+interface PersistedPlayerState {
+  currentWord: string | null;
+  playbackPosition: number;
+  playbackDuration: number;
+  currentSortBy: 'alphabetical' | 'longest' | 'shortest' | 'random';
+  currentFilter: 'all' | 'downloaded' | 'not-downloaded';
+  repeatMode: 0 | 1 | 2;
+  playbackSpeed: number;
+}
+
 interface AudioState {
   // Audio map from JSON (provides URLs for roots that have audio files)
   audioMap: Record<string, AudioFile>;
@@ -43,8 +54,13 @@ interface AudioState {
   playbackDuration: number;
   playbackSpeed: number; // 1.0, 1.25, 1.5, 2.0
 
+  // Persistence state
+  isPlayerStateLoaded: boolean;
+
   // Actions
   loadDownloadedFiles: () => Promise<void>;
+  loadPlayerState: (downloadedFiles?: Record<string, DownloadedFile>) => Promise<void>;
+  savePlayerState: () => Promise<void>;
   downloadAudio: (word: string) => Promise<void>;
   downloadAll: () => Promise<void>;
   deleteAudio: (word: string) => Promise<void>;
@@ -66,6 +82,7 @@ interface AudioState {
 }
 
 const AUDIO_DIR = `${FileSystem.documentDirectory}audio/`;
+const PLAYER_STATE_FILE = `${AUDIO_DIR}player-state.json`;
 
 // Track completed downloads to ignore late progress callbacks
 const completedDownloads = new Set<string>();
@@ -108,6 +125,94 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   playbackPosition: 0,
   playbackDuration: 0,
   playbackSpeed: 1.0,
+  isPlayerStateLoaded: false,
+
+  loadPlayerState: async (loadedFiles?: Record<string, DownloadedFile>) => {
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(PLAYER_STATE_FILE);
+      if (fileInfo.exists) {
+        const content = await FileSystem.readAsStringAsync(PLAYER_STATE_FILE);
+        const savedState = JSON.parse(content) as PersistedPlayerState;
+
+        // Only restore if the word is still downloaded (file exists)
+        // Use passed files directly to avoid stale state issues
+        const downloadedFiles = loadedFiles || get().downloadedFiles;
+        const wordStillDownloaded = savedState.currentWord
+          ? !!downloadedFiles[savedState.currentWord]
+          : false;
+
+        console.log('[Audio] Checking if word is downloaded:', {
+          word: savedState.currentWord,
+          downloadedFilesCount: Object.keys(downloadedFiles).length,
+          isDownloaded: wordStillDownloaded,
+        });
+
+        set({
+          currentSortBy: savedState.currentSortBy || 'alphabetical',
+          currentFilter: savedState.currentFilter || 'all',
+          repeatMode: savedState.repeatMode ?? 0,
+          playbackSpeed: savedState.playbackSpeed || 1.0,
+          // Only restore playback state if the file is still downloaded
+          currentWord: wordStillDownloaded ? savedState.currentWord : null,
+          playbackPosition: wordStillDownloaded ? savedState.playbackPosition : 0,
+          playbackDuration: wordStillDownloaded ? savedState.playbackDuration : 0,
+          isPlayerStateLoaded: true,
+        });
+
+        console.log('[Audio] Player state restored:', {
+          currentWord: wordStillDownloaded ? savedState.currentWord : '(not restored - file deleted)',
+          position: savedState.playbackPosition,
+          sortBy: savedState.currentSortBy,
+          filter: savedState.currentFilter,
+        });
+      } else {
+        set({ isPlayerStateLoaded: true });
+      }
+    } catch (error) {
+      console.error('[Audio] Error loading player state:', error);
+      set({ isPlayerStateLoaded: true });
+    }
+  },
+
+  savePlayerState: async () => {
+    try {
+      const {
+        currentWord,
+        playbackPosition,
+        playbackDuration,
+        currentSortBy,
+        currentFilter,
+        repeatMode,
+        playbackSpeed,
+      } = get();
+
+      const stateToSave: PersistedPlayerState = {
+        currentWord,
+        playbackPosition,
+        playbackDuration,
+        currentSortBy,
+        currentFilter,
+        repeatMode,
+        playbackSpeed,
+      };
+
+      // Ensure directory exists before writing
+      const dirInfo = await FileSystem.getInfoAsync(AUDIO_DIR);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(AUDIO_DIR, { intermediates: true });
+      }
+
+      await FileSystem.writeAsStringAsync(PLAYER_STATE_FILE, JSON.stringify(stateToSave));
+      console.log('[Audio] Player state SAVED:', {
+        word: currentWord,
+        position: Math.round(playbackPosition / 1000) + 's',
+        sortBy: currentSortBy,
+        filter: currentFilter,
+      });
+    } catch (error) {
+      console.error('[Audio] Error saving player state:', error);
+    }
+  },
 
   loadDownloadedFiles: async () => {
     try {
@@ -153,9 +258,17 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         }
 
         set({ downloadedFiles: validFiles });
+
+        // Load player state after downloaded files are loaded
+        // Pass validFiles directly to avoid stale state issues
+        await get().loadPlayerState(validFiles);
+      } else {
+        // No downloaded files, but still load player state for sort/filter
+        await get().loadPlayerState({});
       }
     } catch (error) {
       console.error('Error loading downloaded files:', error);
+      set({ isPlayerStateLoaded: true });
     }
   },
 
@@ -459,12 +572,19 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     // Mark which word is loading
     loadingWord = word;
 
+    // Check if this is a restored word with a saved position
+    // (currentWord is already set but no sound is loaded)
+    const isRestoredWord = currentWord === word;
+    const savedPosition = isRestoredWord ? get().playbackPosition : 0;
+    const savedDuration = isRestoredWord ? get().playbackDuration : 0;
+
     // Set playing state IMMEDIATELY for responsive UI
+    // Preserve position if this is a restored word
     set({
       currentWord: word,
       isPlaying: true,
-      playbackPosition: 0,
-      playbackDuration: 0,
+      playbackPosition: savedPosition,
+      playbackDuration: savedDuration,
     });
 
     try {
@@ -506,10 +626,24 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         shouldPlay: true,
         rate: playbackSpeed,
         shouldCorrectPitch: true,
+        positionMillis: savedPosition, // Start from saved position if restored
       });
 
       // Set sound in state
       set({ sound });
+
+      // If we have a saved position, seek to it (backup in case positionMillis didn't work)
+      if (savedPosition > 0) {
+        try {
+          await sound.setPositionAsync(savedPosition);
+          console.log(`[Audio] Restored playback position: ${Math.round(savedPosition / 1000)}s`);
+        } catch (e) {
+          console.log('[Audio] Could not restore position:', e);
+        }
+      }
+
+      // Save state when new word starts playing
+      get().savePlayerState();
 
       // Wait for sound to actually start playing before enabling status updates
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -518,6 +652,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       // Update playback status
       // OPTIMIZATION: Throttle position updates to every 100ms to reduce re-renders
       let lastPositionUpdate = 0;
+      let lastStateSave = Date.now();
       sound.setOnPlaybackStatusUpdate(async (status) => {
         if (status.isLoaded) {
           // Only update state if values actually changed to prevent unnecessary re-renders
@@ -532,6 +667,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
           if (shouldUpdatePosition) {
             updates.playbackPosition = status.positionMillis;
             lastPositionUpdate = now;
+
+            // Periodically save state during playback (every 5 seconds)
+            if (now - lastStateSave >= 5000) {
+              lastStateSave = now;
+              get().savePlayerState();
+            }
           }
 
           if (currentState.playbackDuration !== (status.durationMillis || 0)) {
@@ -579,6 +720,8 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     if (sound) {
       await sound.pauseAsync();
       set({ isPlaying: false });
+      // Save state when paused (preserves position)
+      get().savePlayerState();
     }
   },
 
@@ -594,11 +737,15 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         playbackPosition: 0,
         playbackDuration: 0,
       });
+      // Save state when stopped
+      get().savePlayerState();
     }
   },
 
   cycleRepeatMode: () => {
     set((state) => ({ repeatMode: ((state.repeatMode + 1) % 3) as 0 | 1 | 2 }));
+    // Save state after repeat mode change
+    get().savePlayerState();
   },
 
   cyclePlaybackSpeed: async () => {
@@ -613,6 +760,9 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     if (sound) {
       await sound.setRateAsync(nextSpeed, true);
     }
+
+    // Save state after speed change
+    get().savePlayerState();
   },
 
   setCurrentRootsList: (roots: string[]) => {
@@ -621,6 +771,8 @@ export const useAudioStore = create<AudioState>((set, get) => ({
 
   setCurrentSortAndFilter: (sortBy, filter) => {
     set({ currentSortBy: sortBy, currentFilter: filter });
+    // Save state after sort/filter change
+    get().savePlayerState();
   },
 
   playNext: async () => {

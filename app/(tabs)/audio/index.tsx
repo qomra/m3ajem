@@ -15,14 +15,25 @@ export default function AudioTab() {
   const flatListRef = useRef<FlatList>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'alphabetical' | 'longest' | 'shortest' | 'random'>('alphabetical');
-  const [filterDownloaded, setFilterDownloaded] = useState<'all' | 'downloaded' | 'not-downloaded'>('all');
   const [randomSeed, setRandomSeed] = useState(() => Date.now());
+
+  // Use store state directly for sort/filter (persisted)
+  const sortBy = useAudioStore(state => state.currentSortBy);
+  const filterDownloaded = useAudioStore(state => state.currentFilter);
+  const isPlayerStateLoaded = useAudioStore(state => state.isPlayerStateLoaded);
+  const setCurrentSortAndFilter = useAudioStore(state => state.setCurrentSortAndFilter);
+
+  // Wrapper functions to update store
+  const setSortBy = (newSort: 'alphabetical' | 'longest' | 'shortest' | 'random') => {
+    setCurrentSortAndFilter(newSort, filterDownloaded);
+  };
+  const setFilterDownloaded = (newFilter: 'all' | 'downloaded' | 'not-downloaded') => {
+    setCurrentSortAndFilter(sortBy, newFilter);
+  };
 
   const availableRoots = useAudioStore(state => state.availableRoots);
   const loadDownloadedFiles = useAudioStore(state => state.loadDownloadedFiles);
   const setCurrentRootsList = useAudioStore(state => state.setCurrentRootsList);
-  const setCurrentSortAndFilter = useAudioStore(state => state.setCurrentSortAndFilter);
   const setAvailableRoots = useAudioStore(state => state.setAvailableRoots);
   const isDownloaded = useAudioStore(state => state.isDownloaded);
   const currentWord = useAudioStore(state => state.currentWord);
@@ -55,36 +66,6 @@ export default function AudioTab() {
     }
     setSortBy(newSort);
   };
-
-  // Update current roots list for navigation whenever sorted/filtered list changes
-  // This ensures navigation (next/prev) respects the current sort order and filters
-  useEffect(() => {
-    const rootsList = sortedRoots.map(item => item.root);
-    setCurrentRootsList(rootsList);
-    setCurrentSortAndFilter(sortBy, filterDownloaded);
-    console.log('[Audio] Updated currentRootsList:', {
-      count: rootsList.length,
-      sortBy,
-      filterDownloaded,
-      searchQuery: searchQuery ? 'active' : 'none',
-    });
-  }, [sortedRoots, sortBy, filterDownloaded, searchQuery]);
-
-  // Auto-scroll to current word when it changes
-  useEffect(() => {
-    if (currentWord && flatListRef.current) {
-      const index = sortedRoots.findIndex(item => item.root === currentWord);
-      if (index !== -1) {
-        setTimeout(() => {
-          flatListRef.current?.scrollToIndex({
-            index,
-            animated: true,
-            viewPosition: 0.5, // Center the item
-          });
-        }, 100);
-      }
-    }
-  }, [currentWord, sortedRoots]);
 
   // Helper: Remove diacritics for search matching
   const removeDiacritics = (str: string) => str.replace(/[\u064B-\u065F\u0670]/g, '');
@@ -154,11 +135,43 @@ export default function AudioTab() {
     return sorted;
   }, [filteredRoots, sortBy, randomSeed, audioMap, pathname]);
 
+  // Update current roots list for navigation whenever sorted/filtered list changes
+  // This ensures navigation (next/prev) respects the current sort order and filters
+  useEffect(() => {
+    // Don't update store until player state is loaded to avoid overwriting restored values
+    if (!isPlayerStateLoaded) return;
+
+    const rootsList = sortedRoots.map(item => item.root);
+    setCurrentRootsList(rootsList);
+    console.log('[Audio] Updated currentRootsList:', {
+      count: rootsList.length,
+      sortBy,
+      filterDownloaded,
+      searchQuery: searchQuery ? 'active' : 'none',
+    });
+  }, [sortedRoots, isPlayerStateLoaded]);
+
+  // Auto-scroll to current word when it changes
+  useEffect(() => {
+    if (currentWord && flatListRef.current) {
+      const index = sortedRoots.findIndex(item => item.root === currentWord);
+      if (index !== -1) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToIndex({
+            index,
+            animated: true,
+            viewPosition: 0.5, // Center the item
+          });
+        }, 100);
+      }
+    }
+  }, [currentWord, sortedRoots]);
+
   // Only render the expensive FlatList when on the main audio list view
   const isOnMainList = pathname === '/audio';
 
-  // Show loading state while roots are being fetched from database
-  const isLoading = isLoadingRoots || (processedRoots.length === 0 && availableRoots.length === 0);
+  // Show loading state while roots are being fetched or player state is loading
+  const isLoading = isLoadingRoots || !isPlayerStateLoaded || (processedRoots.length === 0 && availableRoots.length === 0);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
