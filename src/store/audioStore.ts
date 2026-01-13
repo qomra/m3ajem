@@ -181,62 +181,142 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       downloadProgress: { ...state.downloadProgress, [word]: 0 },
     }));
 
+    const downloadStartTime = Date.now();
+    const fileSizeKB = Math.round(audioFile.size / 1024);
+    console.log(`[Audio] Starting download: ${word} (${fileSizeKB} KB)`);
+
     try {
       const localUri = `${AUDIO_DIR}${word}.mp3`;
 
-      // Download with progress
-      const downloadResumable = FileSystem.createDownloadResumable(
-        audioFile.url,
-        localUri,
-        {},
-        (downloadProgress) => {
-          // Ignore progress callbacks if download already completed
-          if (completedDownloads.has(word)) {
-            return;
-          }
+      // Build list of URLs to try for Google Drive files
+      // Google Drive blocks direct downloads for large files, so we try multiple formats
+      const urlsToTry: string[] = [];
 
-          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-          set((state) => ({
-            downloadProgress: { ...state.downloadProgress, [word]: progress },
-          }));
+      if (audioFile.url.includes('drive.google.com')) {
+        // Extract file ID from various Google Drive URL formats
+        let fileId = audioFile.id;
+        if (!fileId) {
+          const idMatch = audioFile.url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          if (idMatch) fileId = idMatch[1];
         }
-      );
 
-      const result = await downloadResumable.downloadAsync();
+        if (fileId) {
+          // Try multiple URL formats - some work better than others for large files
+          urlsToTry.push(`https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`);
+          urlsToTry.push(`https://drive.google.com/uc?export=download&confirm=t&id=${fileId}`);
+          urlsToTry.push(audioFile.url + (audioFile.url.includes('?') ? '&' : '?') + 'confirm=t');
+        } else {
+          urlsToTry.push(audioFile.url);
+        }
+      } else {
+        urlsToTry.push(audioFile.url);
+      }
 
-      if (result) {
+      let result: FileSystem.FileSystemDownloadResult | undefined;
+      let lastError: Error | null = null;
 
-        // Mark as completed IMMEDIATELY to block late callbacks
+      for (const downloadUrl of urlsToTry) {
+        console.log(`[Audio] Trying URL format: ${downloadUrl.substring(0, 80)}...`);
+
+        // Download with progress
+        const downloadResumable = FileSystem.createDownloadResumable(
+          downloadUrl,
+          localUri,
+          {},
+          (downloadProgress) => {
+            // Ignore progress callbacks if download already completed
+            if (completedDownloads.has(word)) {
+              return;
+            }
+
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            set((state) => ({
+              downloadProgress: { ...state.downloadProgress, [word]: progress },
+            }));
+          }
+        );
+
+        try {
+          result = await downloadResumable.downloadAsync();
+
+          if (result) {
+            // Check file size immediately
+            const fileInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
+            const actualSize = (fileInfo as any).size || 0;
+            const sizeRatio = actualSize / audioFile.size;
+
+            if (sizeRatio >= 0.9) {
+              // Success! This URL format worked
+              console.log(`[Audio] URL format worked!`);
+              break;
+            } else {
+              console.log(`[Audio] URL returned wrong size (${Math.round(actualSize / 1024)} KB), trying next...`);
+              // Delete the bad file and try next URL
+              await FileSystem.deleteAsync(result.uri, { idempotent: true });
+              result = undefined;
+            }
+          }
+        } catch (e) {
+          lastError = e as Error;
+          console.log(`[Audio] URL failed: ${(e as Error).message}`);
+        }
+      }
+
+      // Handle failures
+      if (!result) {
+        const downloadDuration = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
+        console.error(`[Audio] Download FAILED for ${word} after ${downloadDuration}s: all URL formats failed`);
+        console.error(`[Audio]   Google Drive blocks direct downloads for large files (>100MB).`);
+        console.error(`[Audio]   Consider migrating audio files to a proper CDN (AWS S3, Cloudflare R2, etc.)`);
+
         completedDownloads.add(word);
-
-        const newDownloadedFiles = {
-          ...downloadedFiles,
-          [word]: {
-            word,
-            localUri: result.uri,
-            size: audioFile.size,
-            downloadedAt: Date.now(),
-          },
-        };
-
-        // Save to storage
-        const filesListPath = `${AUDIO_DIR}downloaded.json`;
-        await FileSystem.writeAsStringAsync(filesListPath, JSON.stringify(newDownloadedFiles));
-
-
-        // Update state in one atomic operation
         set((state) => {
           const newProgress = { ...state.downloadProgress };
           delete newProgress[word];
-          return {
-            downloadedFiles: newDownloadedFiles,
-            downloadProgress: newProgress,
-          };
+          return { downloadProgress: newProgress };
         });
 
+        if (lastError) {
+          throw lastError;
+        }
+        return;
       }
+
+      // Success - file passed size validation in the loop
+      const downloadDuration = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
+      const fileInfo = await FileSystem.getInfoAsync(result.uri, { size: true });
+      const actualSize = (fileInfo as any).size || 0;
+
+      // Mark as completed IMMEDIATELY to block late callbacks
+      completedDownloads.add(word);
+
+      console.log(`[Audio] Download complete: ${word} (${fileSizeKB} KB in ${downloadDuration}s, verified)`);
+
+      // Update state in TRULY atomic operation using state updater
+      // This ensures we always work with the latest state, avoiding race conditions
+      set((state) => {
+        const newProgress = { ...state.downloadProgress };
+        delete newProgress[word];
+        return {
+          downloadedFiles: {
+            ...state.downloadedFiles,
+            [word]: {
+              word,
+              localUri: result.uri,
+              size: actualSize,
+              downloadedAt: Date.now(),
+            },
+          },
+          downloadProgress: newProgress,
+        };
+      });
+
+      // Save to storage AFTER state update (use latest state)
+      const filesListPath = `${AUDIO_DIR}downloaded.json`;
+      await FileSystem.writeAsStringAsync(filesListPath, JSON.stringify(get().downloadedFiles));
     } catch (error) {
-      console.error(`[Audio] Error downloading audio for ${word}:`, error);
+      const downloadDuration = ((Date.now() - downloadStartTime) / 1000).toFixed(1);
+      console.error(`[Audio] Error downloading ${word} (${fileSizeKB} KB) after ${downloadDuration}s:`, error);
       // Mark as completed even on error to stop progress callbacks
       completedDownloads.add(word);
       // Clear progress on error
@@ -544,63 +624,71 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   playNext: async () => {
-    const { currentWord, currentRootsList, isPlaying, downloadedFiles } = get();
+    const { currentWord, currentRootsList, isPlaying, downloadedFiles, sound } = get();
 
     if (!currentWord) return;
 
     const currentIndex = currentRootsList.indexOf(currentWord);
     if (currentIndex === -1) return;
 
-    // Always find next downloaded item (playable)
+    // Find next downloaded item (playable)
     let nextIndex = currentIndex + 1;
     while (nextIndex < currentRootsList.length) {
       const nextWord = currentRootsList[nextIndex];
       if (downloadedFiles[nextWord]) {
-        // If currently playing, stop and play next
-        if (isPlaying) {
-          await get().stopAudio();
-          await get().playAudio(nextWord);
-        } else {
-          // Not playing, just navigate
-          set({ currentWord: nextWord });
+        // Stop current sound without clearing currentWord
+        if (sound) {
+          try {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+          } catch (error) {
+            console.error('Error stopping current sound:', error);
+          }
+          set({ sound: null, isPlaying: false });
         }
+        // Play the next word
+        await get().playAudio(nextWord);
         return;
       }
       nextIndex++;
     }
-    // No more downloaded items found
-    if (isPlaying) {
+    // No more downloaded items found - stop playback
+    if (sound) {
       await get().stopAudio();
     }
   },
 
   playPrevious: async () => {
-    const { currentWord, currentRootsList, isPlaying, downloadedFiles } = get();
+    const { currentWord, currentRootsList, downloadedFiles, sound } = get();
 
     if (!currentWord) return;
 
     const currentIndex = currentRootsList.indexOf(currentWord);
     if (currentIndex === -1) return;
 
-    // Always find previous downloaded item (playable)
+    // Find previous downloaded item (playable)
     let prevIndex = currentIndex - 1;
     while (prevIndex >= 0) {
       const prevWord = currentRootsList[prevIndex];
       if (downloadedFiles[prevWord]) {
-        // If currently playing, stop and play previous
-        if (isPlaying) {
-          await get().stopAudio();
-          await get().playAudio(prevWord);
-        } else {
-          // Not playing, just navigate
-          set({ currentWord: prevWord });
+        // Stop current sound without clearing currentWord
+        if (sound) {
+          try {
+            await sound.stopAsync();
+            await sound.unloadAsync();
+          } catch (error) {
+            console.error('Error stopping current sound:', error);
+          }
+          set({ sound: null, isPlaying: false });
         }
+        // Play the previous word
+        await get().playAudio(prevWord);
         return;
       }
       prevIndex--;
     }
-    // No more downloaded items found
-    if (isPlaying) {
+    // No more downloaded items found - stop playback
+    if (sound) {
       await get().stopAudio();
     }
   },
