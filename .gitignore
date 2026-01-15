@@ -180,4 +180,10 @@ assets/data/m3ajem-*.json
 # OAuth credentials (sensitive)
 googleauth/
 google_client_id
+assets/data/*.db.env.local
+
+# Turath/Shamela scripts data
+assets/data/scripts/*.json
+assets/data/scripts/venv/
+assets/data/scripts/browser_data/
 assets/data/*.db

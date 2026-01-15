@@ -35,6 +35,8 @@ export function AudioHeader({
   const deleteAll = useAudioStore(state => state.deleteAll);
   const getDownloadedCount = useAudioStore(state => state.getDownloadedCount);
   const getTotalSize = useAudioStore(state => state.getTotalSize);
+  const autoDownload = useAudioStore(state => state.autoDownload);
+  const toggleAutoDownload = useAudioStore(state => state.toggleAutoDownload);
 
   const downloadedCount = getDownloadedCount();
   const totalSize = getTotalSize();
@@ -141,6 +143,20 @@ export function AudioHeader({
           ) : (
             <Ionicons name="download" size={20} color={theme.colors.primary} />
           )}
+        </Pressable>
+
+        <Pressable
+          style={[styles.checkboxButton, { backgroundColor: theme.colors.background }]}
+          onPress={toggleAutoDownload}
+        >
+          <Text style={[styles.filterButtonText, { color: autoDownload ? theme.colors.primary : theme.colors.textSecondary }]}>
+            {t('audio.autoDownload')}
+          </Text>
+          <Ionicons
+            name={autoDownload ? 'checkbox' : 'square-outline'}
+            size={20}
+            color={autoDownload ? theme.colors.primary : theme.colors.textSecondary}
+          />
         </Pressable>
 
         <Pressable
@@ -352,6 +368,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 6,
     minWidth: 100,
+  },
+  checkboxButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
   },
   filterButtonText: {
     fontSize: 14,

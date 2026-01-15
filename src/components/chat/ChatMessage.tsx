@@ -34,8 +34,9 @@ export function ChatMessage({ message, onContextPress }: ChatMessageProps) {
   const [selectedSource, setSelectedSource] = useState<Source | null>(null);
 
   const handleNavigateToSource = async (source: Source) => {
-    // Close the source modal first
+    // Close ALL source modals first (both المصادر and انظر أيضا)
     setShowSources(false);
+    setShowRelatedSources(false);
 
     try {
       // Open modal based on source type (stay within chat context)

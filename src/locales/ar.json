@@ -131,7 +131,8 @@
     "confirmDeleteAll": "هل تريد حذف جميع الملفات الصوتية المحملة؟",
     "noFilesToDelete": "لا توجد ملفات محملة لحذفها",
     "nextRoot": "المادة التالية",
-    "previousRoot": "المادة السابقة"
+    "previousRoot": "المادة السابقة",
+    "autoDownload": "تحميل تلقائي"
   },
   "smart": {
     "title": "ذكي",
