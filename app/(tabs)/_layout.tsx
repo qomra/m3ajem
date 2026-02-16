@@ -35,6 +35,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Smart tab temporarily disabled
       <Tabs.Screen
         name="smart"
         options={{
@@ -42,6 +43,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'sparkles' : 'sparkles-outline'} size={size} color={color} />
           ),
+        }}
+      />
+      */}
+      <Tabs.Screen
+        name="smart"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen

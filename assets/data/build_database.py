@@ -52,6 +52,8 @@ INDEXING_PATTERNS = {
     'معجم المغني': 'root_bracketed',
     'معجم المصطلحات والألفاظ الفقهية': 'word_full',
     'معجم الرائد': 'mixed',
+    # Lo3awi individual dictionaries
+    'إعراب القرآن وبيانه': 'root_simple',
     # Moraqman dictionaries (default to root_simple for now)
     'معجم المصطلحات الميكانيكية': 'root_simple',
     'معجم المصطلحات الطبية': 'root_simple',
@@ -282,6 +284,26 @@ def load_dictionaries() -> List[Dict]:
     else:
         print(f"  ⚠️ Warning: لسان العرب not found in ommat.json")
 
+    # Load individual lo3awi dictionaries from subdirectories
+    # Skip files whose name already exists in ommat to avoid duplicates
+    ommat_names = {d['name'] for d in ommat}
+    lo3awi_individual_files = glob.glob(os.path.join(base_dir, 'lo3awi', '*', '*.json'))
+    lo3awi_individual = []
+    for filepath in lo3awi_individual_files:
+        try:
+            dictionary = load_json(filepath)
+            if 'name' in dictionary and 'data' in dictionary:
+                if dictionary['name'] in ommat_names:
+                    print(f"  ⏭ Skipping {dictionary['name']} (already in ommat)")
+                    continue
+                dictionary['type'] = 'lo3awi'
+                lo3awi_individual.append(dictionary)
+                print(f"  ✓ Loaded lo3awi: {dictionary['name']} ({len(dictionary['data'])} entries)")
+        except Exception as e:
+            print(f"  ⚠️ Error loading {filepath}: {e}")
+
+    print(f"  ✓ Loaded {len(lo3awi_individual)} individual lo3awi dictionaries")
+
     # Load moraqman dictionaries
     moraqman_base = os.path.join(base_dir, 'moraqman')
     moraqman_files = glob.glob(os.path.join(moraqman_base, '*', '*.json'))
@@ -305,9 +327,10 @@ def load_dictionaries() -> List[Dict]:
     print(f"  ✓ Loaded {len(moraqman_dicts)} moraqman dictionaries")
 
     # Combine all dictionaries
-    all_dicts = ommat + moraqman_dicts
+    all_dicts = ommat + lo3awi_individual + moraqman_dicts
     print(f"\n  Total dictionaries: {len(all_dicts)}")
-    print(f"    - Lo3awi (traditional): {len(ommat)}")
+    print(f"    - Lo3awi (traditional/ommat): {len(ommat)}")
+    print(f"    - Lo3awi (individual): {len(lo3awi_individual)}")
     print(f"    - Moraqman (AI-digitized): {len(moraqman_dicts)}")
 
     return all_dicts
@@ -565,8 +588,29 @@ def load_lo3awi_only() -> List[Dict]:
     else:
         print(f"  ⚠️ Warning: {mofahras_resources_path} not found, skipping mofahras merge")
 
-    print(f"\n  Total lo3awi dictionaries: {len(ommat)}")
-    return ommat
+    # Load individual lo3awi dictionaries from subdirectories
+    # Skip files whose name already exists in ommat to avoid duplicates
+    ommat_names = {d['name'] for d in ommat}
+    lo3awi_individual_files = glob.glob(os.path.join(base_dir, 'lo3awi', '*', '*.json'))
+    lo3awi_individual = []
+    for filepath in lo3awi_individual_files:
+        try:
+            dictionary = load_json(filepath)
+            if 'name' in dictionary and 'data' in dictionary:
+                if dictionary['name'] in ommat_names:
+                    print(f"  ⏭ Skipping {dictionary['name']} (already in ommat)")
+                    continue
+                dictionary['type'] = 'lo3awi'
+                lo3awi_individual.append(dictionary)
+                print(f"  ✓ Loaded lo3awi: {dictionary['name']} ({len(dictionary['data'])} entries)")
+        except Exception as e:
+            print(f"  ⚠️ Error loading {filepath}: {e}")
+
+    print(f"  ✓ Loaded {len(lo3awi_individual)} individual lo3awi dictionaries")
+
+    all_lo3awi = ommat + lo3awi_individual
+    print(f"\n  Total lo3awi dictionaries: {len(all_lo3awi)}")
+    return all_lo3awi
 
 def load_moraqman_only() -> List[Dict]:
     """Load only moraqman dictionaries."""

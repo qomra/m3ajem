@@ -9,7 +9,7 @@ import json
 import re
 
 INPUT_FILE = os.path.join(os.path.dirname(__file__), "turath_book_83.json")
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "maajim", "moraqman", "almohit")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "maajim", "lo3awi", "almohit")
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "المحيط في اللغة.json")
 
 # Letter name to actual letter mapping
@@ -61,8 +61,8 @@ def extract_root_from_header(header):
     "العين والهاء والقاف" → "عهق"
     "باب العين والكاف" → "عك"
     """
-    # Remove brackets and "باب" prefix
-    header = header.strip('[]')
+    # Remove ALL brackets and "باب" prefix
+    header = re.sub(r'[\[\]]', '', header)
     header = re.sub(r'^باب\s+', '', header)
 
     # Split by "و" and extract letter names
@@ -134,6 +134,52 @@ def clean_text(text):
     text = inline_footnotes(text)
     return text.strip()
 
+def strip_diacritics(text):
+    """Remove Arabic diacritics (tashkeel)."""
+    # Arabic diacritics: fatha, damma, kasra, shadda, sukun, tanwin, etc.
+    diacritics = re.compile(r'[\u064B-\u065F\u0670]')
+    return diacritics.sub('', text)
+
+def split_text_at_header(text, header):
+    """
+    Split page text at the root header.
+    Returns (text_before, text_after) - text before goes to previous root, after to new root.
+    """
+    # Clean the header for matching (remove brackets)
+    clean_header = re.sub(r'[\[\]]', '', header)
+
+    # Try exact matches first
+    simple_patterns = [
+        clean_header,
+        header,
+        header.strip('[]'),
+    ]
+
+    for pat in simple_patterns:
+        if pat in text:
+            idx = text.find(pat)
+            return text[:idx], text[idx:]
+
+    # Try matching without diacritics
+    # Build a regex that matches each letter with optional diacritics between
+    stripped_header = strip_diacritics(clean_header)
+    # Create pattern: each char can be followed by optional diacritics
+    diacritic_class = '[\u064B-\u065F\u0670]*'
+    pattern_parts = []
+    for char in stripped_header:
+        if char.isspace():
+            pattern_parts.append(r'\s+')
+        else:
+            pattern_parts.append(re.escape(char) + diacritic_class)
+    flex_pattern = ''.join(pattern_parts)
+
+    match = re.search(flex_pattern, text)
+    if match:
+        return text[:match.start()], text[match.start():]
+
+    # Couldn't find header - return all text as "after"
+    return "", text
+
 def main():
     print(f"Loading {INPUT_FILE}...")
 
@@ -167,13 +213,22 @@ def main():
 
         # Find root header in headings (usually the last specific one)
         new_root = None
+        matched_header = None
         for h in reversed(headings):
             if is_root_header(h):
                 new_root = extract_root_from_header(h)
                 if new_root:
+                    matched_header = h
                     break
 
         if new_root:
+            # Split page text at the header
+            text_before, text_after = split_text_at_header(text, matched_header)
+
+            # Add text before header to previous root
+            if current_root and text_before:
+                current_texts.append(clean_text(text_before))
+
             # Save previous root
             if current_root and current_texts:
                 full_text = "\n\n".join(current_texts)
@@ -183,7 +238,7 @@ def main():
                     roots_data[current_root] = full_text
 
             current_root = new_root
-            current_texts = [clean_text(text)] if text else []
+            current_texts = [clean_text(text_after)] if text_after else []
         else:
             # Continue with current root
             if current_root and text:
@@ -206,8 +261,8 @@ def main():
     # Create output
     output = {
         "name": book_name or "المحيط في اللغة",
-        "description": f"تأليف: {author_name}" if author_name else "",
-        "type": "moraqman",
+        "description": "تأليف: الصاحب إسماعيل بن عباد (٣٢٦-٣٨٥ هـ) | تحقيق: محمد حسن آل ياسين | عالم الكتب",
+        "type": "lo3awi",
         "data": roots_data
     }
 

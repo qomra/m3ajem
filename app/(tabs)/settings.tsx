@@ -473,7 +473,7 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
-        {/* AI Section */}
+        {/* AI Section - temporarily disabled
         <SettingsSection title={t('settings.sections.ai')}>
           <SettingsItem
             icon="key-outline"
@@ -500,6 +500,7 @@ export default function SettingsScreen() {
             />
           )}
         </SettingsSection>
+        */}
 
         {/* Data Section */}
         <SettingsSection title={t('settings.sections.data')}>
@@ -510,6 +511,7 @@ export default function SettingsScreen() {
             onPress={handleDeleteAllAudio}
             danger
           />
+          {/* Chat items temporarily disabled
           <SettingsItem
             icon="chatbubbles-outline"
             title={t('settings.deleteChat')}
@@ -548,6 +550,7 @@ export default function SettingsScreen() {
             subtitle={t('settings.chatHistory')}
             onPress={handleDownloadChatHistory}
           />
+          */}
         </SettingsSection>
 
         {/* About Section */}
