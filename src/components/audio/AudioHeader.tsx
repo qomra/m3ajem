@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, TextInput, Pressable, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, Platform, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useTheme, useTranslation } from '@hooks';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useAudioStore } from '@store/audioStore';
+import { useRouter } from 'expo-router';
 
 interface AudioHeaderProps {
+  bookName: string;
+  driveFolderUrl: string;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   sortBy: 'alphabetical' | 'longest' | 'shortest' | 'random';
@@ -16,6 +19,8 @@ interface AudioHeaderProps {
 }
 
 export function AudioHeader({
+  bookName,
+  driveFolderUrl,
   searchQuery,
   onSearchChange,
   sortBy,
@@ -27,6 +32,7 @@ export function AudioHeader({
 }: AudioHeaderProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -96,9 +102,14 @@ export function AudioHeader({
   return (
     <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
       <View style={styles.titleRow}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{t('audio.title')}</Text>
+        <View style={[styles.headerTop, { flexDirection: 'row' }]}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={[styles.backButtonText, { color: theme.colors.primary }]}>←</Text>
+          </Pressable>
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>{bookName}</Text>
+        </View>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {t('audio.lisanArab')} • {filteredCount}/{totalCount}
+          {filteredCount}/{totalCount}
         </Text>
       </View>
 
@@ -157,6 +168,16 @@ export function AudioHeader({
             size={20}
             color={autoDownload ? theme.colors.primary : theme.colors.textSecondary}
           />
+        </Pressable>
+
+        <Pressable
+          style={[styles.actionButton, { backgroundColor: theme.colors.background }]}
+          onPress={() => Linking.openURL(driveFolderUrl)}
+        >
+          <Text style={[styles.filterButtonText, { color: theme.colors.primary }]}>
+            {t('audio.openFolder')}
+          </Text>
+          <Ionicons name="folder-open" size={20} color={theme.colors.primary} />
         </Pressable>
 
         <Pressable
@@ -324,7 +345,17 @@ const styles = StyleSheet.create({
   titleRow: {
     marginBottom: 12,
   },
+  headerTop: {
+    alignItems: 'center',
+  },
+  backButton: {
+    paddingRight: 12,
+  },
+  backButtonText: {
+    fontSize: 28,
+  },
   title: {
+    flex: 1,
     fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'right',

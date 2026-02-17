@@ -48,7 +48,7 @@ CLOUD_TTS_MODEL = "gemini-2.5-flash-tts"
 
 # Paths
 INPUT_FILE = Path(__file__).parent / "scripts" / "إعراب القرآن (إعراب فقط).json"
-OUTPUT_DIR = Path(__file__).parent / "maajim" / "audio" / "i3rab_quran"
+OUTPUT_DIR = Path(__file__).parent / "maajim" / "audio" / "i3rab_quran" / "original"
 
 # Maximum text length per chunk (in characters)
 MAX_CHUNK_LENGTH = 2000
@@ -211,10 +211,16 @@ def get_entries() -> List[Dict]:
 
 
 def sanitize_filename(key: str) -> str:
-    """Convert entry key to a safe filename."""
-    # Replace / with _
+    """Convert entry key like '001 سورة الفاتحة / آيات 001-007' to '001_001_007'."""
+    # Match: SSS سورة ... / آية VVV  or  SSS سورة ... / آيات VVV-VVV
+    m = re.match(r'(\d{3})\s+.*?/\s*آية\s+(\d{3})$', key)
+    if m:
+        return f"{m.group(1)}_{m.group(2)}_{m.group(2)}"
+    m = re.match(r'(\d{3})\s+.*?/\s*آيات\s+(\d{3})-(\d{3})$', key)
+    if m:
+        return f"{m.group(1)}_{m.group(2)}_{m.group(3)}"
+    # Fallback
     name = key.replace(' / ', '_').replace('/', '_')
-    # Remove characters that are problematic in filenames
     name = re.sub(r'[<>:"|?*]', '', name)
     return name
 
@@ -425,8 +431,61 @@ def generate_audio_cloud_tts(client, text: str, voice_name: str) -> bytes:
     return response.audio_content
 
 
-def generate_cloud_tts(voice_name: str = None, limit: int = None):
-    """Generate audio using Cloud TTS (no daily limit)."""
+async def process_entry_cloud_tts(
+    client,
+    entry: Dict,
+    voice_name: Optional[str],
+    semaphore: asyncio.Semaphore,
+    entry_num: int,
+    total_entries: int,
+) -> Tuple[str, bool, Optional[str]]:
+    """Process a single entry using Cloud TTS (run in thread pool)."""
+    async with semaphore:
+        key = entry["key"]
+        filename = sanitize_filename(key)
+        output_file = OUTPUT_DIR / f"{filename}.wav"
+
+        text = preprocess_text(entry["definition"])
+        if not text:
+            print(f"   [{entry_num}/{total_entries}] {key}: empty text, skipping")
+            return (key, True, "empty")
+
+        selected_voice = voice_name if voice_name else get_random_voice(key)
+        chunks = chunk_text(text)
+
+        print(f"   [{entry_num}/{total_entries}] {key} [{selected_voice}] {len(text)} chars, {len(chunks)} chunk(s)...", end=" ", flush=True)
+
+        try:
+            loop = asyncio.get_event_loop()
+
+            if len(chunks) == 1:
+                raw_audio = await loop.run_in_executor(
+                    None, generate_audio_cloud_tts, client, chunks[0], selected_voice)
+                audio_data = convert_to_wav(raw_audio, "audio/L16;rate=24000")
+            else:
+                audio_parts = []
+                for j, chunk in enumerate(chunks, 1):
+                    print(f"chunk {j}/{len(chunks)}...", end=" ", flush=True)
+                    chunk_audio = await loop.run_in_executor(
+                        None, generate_audio_cloud_tts, client, chunk, selected_voice)
+                    wav_chunk = convert_to_wav(chunk_audio, "audio/L16;rate=24000")
+                    audio_parts.append(wav_chunk)
+                audio_data = stitch_wav_files(audio_parts)
+
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            async with aiofiles.open(output_file, "wb") as f:
+                await f.write(audio_data)
+
+            print("✓")
+            return (key, True, None)
+
+        except Exception as e:
+            print(f"✗ {e}")
+            return (key, False, str(e))
+
+
+async def generate_cloud_tts_async(voice_name: str = None, limit: int = None, max_concurrent: int = MAX_CONCURRENT_REQUESTS):
+    """Generate audio using Cloud TTS with async concurrency."""
     try:
         from google.cloud import texttospeech
     except ImportError:
@@ -435,13 +494,14 @@ def generate_cloud_tts(voice_name: str = None, limit: int = None):
         return
 
     print("=" * 60)
-    print("GENERATING إعراب القرآن AUDIO (Cloud TTS)")
+    print("GENERATING إعراب القرآن AUDIO (Cloud TTS - Concurrent)")
     print("=" * 60)
     if voice_name:
         print(f"Voice: {voice_name} (fixed)")
     else:
         print(f"Voices: Random from {', '.join(SELECTED_VOICES)}")
     print(f"Output: {OUTPUT_DIR}")
+    print(f"Concurrent: {max_concurrent}")
     print(f"Rate limit: 150 RPM (no daily cap)")
     print("=" * 60)
 
@@ -471,52 +531,32 @@ def generate_cloud_tts(voice_name: str = None, limit: int = None):
         print("✓ All entries already processed!")
         return
 
-    print("=" * 60)
-
+    semaphore = asyncio.Semaphore(max_concurrent)
+    batch_size = 100
     total_processed = 0
     total_errors = 0
 
-    for i, entry in enumerate(pending, 1):
-        key = entry["key"]
-        filename = sanitize_filename(key)
-        output_file = OUTPUT_DIR / f"{filename}.wav"
+    for batch_start in range(0, len(pending), batch_size):
+        batch = pending[batch_start:batch_start + batch_size]
+        batch_num = batch_start // batch_size + 1
+        total_batches = (len(pending) + batch_size - 1) // batch_size
 
-        text = preprocess_text(entry["definition"])
-        if not text:
-            print(f"[{i}/{len(pending)}] {key}: empty text, skipping")
-            continue
+        print(f"\nBatch {batch_num}/{total_batches} ({len(batch)} entries)...")
 
-        selected_voice = voice_name if voice_name else get_random_voice(key)
-        chunks = chunk_text(text)
+        tasks = [
+            process_entry_cloud_tts(client, entry, voice_name, semaphore,
+                                    batch_start + i + 1, len(pending))
+            for i, entry in enumerate(batch)
+        ]
 
-        print(f"[{i}/{len(pending)}] {key} [{selected_voice}] {len(text)} chars, {len(chunks)} chunk(s)...", end=" ", flush=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        try:
-            if len(chunks) == 1:
-                raw_audio = generate_audio_cloud_tts(client, chunks[0], selected_voice)
-                audio_data = convert_to_wav(raw_audio, "audio/L16;rate=24000")
-            else:
-                audio_parts = []
-                for j, chunk in enumerate(chunks, 1):
-                    print(f"chunk {j}/{len(chunks)}...", end=" ", flush=True)
-                    chunk_audio = generate_audio_cloud_tts(client, chunk, selected_voice)
-                    wav_chunk = convert_to_wav(chunk_audio, "audio/L16;rate=24000")
-                    audio_parts.append(wav_chunk)
-                audio_data = stitch_wav_files(audio_parts)
+        batch_ok = sum(1 for r in results if not isinstance(r, Exception) and r[1])
+        batch_err = len(results) - batch_ok
+        total_processed += batch_ok
+        total_errors += batch_err
 
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, "wb") as f:
-                f.write(audio_data)
-
-            print("✓")
-            total_processed += 1
-
-        except Exception as e:
-            print(f"✗ {e}")
-            total_errors += 1
-
-        if i % 50 == 0:
-            print(f"\n   📊 Progress: {existing + total_processed}/{len(entries)} ({100*(existing + total_processed)/len(entries):.1f}%)\n")
+        print(f"\n   Progress: {batch_ok} ok, {batch_err} errors | Total: {existing + total_processed}/{len(entries)} ({100*(existing + total_processed)/len(entries):.1f}%)")
 
     print("\n" + "=" * 60)
     print(f"COMPLETE! Processed: {total_processed} | Errors: {total_errors}")
@@ -628,7 +668,7 @@ def main():
         return
 
     if args.cloud_tts:
-        generate_cloud_tts(args.voice, args.limit)
+        asyncio.run(generate_cloud_tts_async(args.voice, args.limit, args.concurrent))
     elif args.gemini:
         if not os.environ.get("GEMINI_API_KEY"):
             print("Error: GEMINI_API_KEY not set")

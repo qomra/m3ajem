@@ -133,7 +133,12 @@
     "noFilesToDelete": "لا توجد ملفات محملة لحذفها",
     "nextRoot": "المادة التالية",
     "previousRoot": "المادة السابقة",
-    "autoDownload": "تحميل تلقائي"
+    "autoDownload": "تحميل تلقائي",
+    "bookLisanArab": "لسان العرب",
+    "bookI3rabQuran": "إعراب القرآن",
+    "searchEntry": "ابحث عن آية",
+    "audioEntries": "مادة صوتية",
+    "openFolder": "افتح المجلد"
   },
   "smart": {
     "title": "ذكي",

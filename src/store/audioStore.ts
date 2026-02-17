@@ -8,6 +8,53 @@ import {
   MediaControlEvent,
 } from 'expo-media-control';
 import audioMapData from '../data/audioMap.json';
+import i3rabAudioMapData from '../data/i3rabAudioMap.json';
+
+// Book registry — add new books here
+export interface AudioBook {
+  id: string;
+  name: string;
+  dictionaryName: string;
+  audioMap: Record<string, AudioFile>;
+  driveFolderUrl: string;
+}
+
+export const AUDIO_BOOKS: AudioBook[] = [
+  {
+    id: 'lisan',
+    name: 'لسان العرب',
+    dictionaryName: 'لسان العرب',
+    audioMap: audioMapData as Record<string, AudioFile>,
+    driveFolderUrl: 'https://drive.google.com/drive/folders/1aIVlLbrhxWjNJ_CsVV2BS4P9s4LqOeHD',
+  },
+  {
+    id: 'i3rab',
+    name: 'إعراب القرآن وبيانه',
+    dictionaryName: 'إعراب القرآن وبيانه',
+    audioMap: i3rabAudioMapData as Record<string, AudioFile>,
+    driveFolderUrl: 'https://drive.google.com/drive/folders/1UmLvRAKrIdBcNgYXX_i-QiLE3pvSMkgh',
+  },
+];
+
+// Merged audio map for unified lookups across all books
+const mergedAudioMap: Record<string, AudioFile> = {};
+const bookKeysMap: Record<string, string[]> = {};
+for (const book of AUDIO_BOOKS) {
+  Object.assign(mergedAudioMap, book.audioMap);
+  bookKeysMap[book.id] = Object.keys(book.audioMap);
+}
+
+// Sanitize word for use as filename (i3rab entries have / in keys)
+function sanitizeFilename(word: string): string {
+  return word.replace(/[\/\\:*?"<>|]/g, '_');
+}
+
+// Get local filename for a word, using the actual extension from its audioMap entry
+function getLocalFilename(word: string): string {
+  const entry = mergedAudioMap[word];
+  const ext = entry?.name?.split('.').pop() || 'mp3';
+  return `${sanitizeFilename(word)}.${ext}`;
+}
 
 interface AudioFile {
   id: string;
@@ -194,9 +241,11 @@ async function initializeMediaControls(getState: () => AudioState) {
 // Update lock screen metadata (Now Playing info)
 async function updateMediaMetadata(word: string, durationMs: number) {
   try {
+    // Find which book this word belongs to
+    const book = AUDIO_BOOKS.find(b => b.audioMap[word]);
     const metadata = {
       title: word,
-      artist: 'لسان العرب',
+      artist: book?.name || 'المعجم',
       album: 'المعجم',
       duration: Math.round(durationMs / 1000), // Convert to seconds
     };
@@ -236,7 +285,7 @@ async function updateMediaPlaybackState(
 }
 
 export const useAudioStore = create<AudioState>((set, get) => ({
-  audioMap: audioMapData as Record<string, AudioFile>,
+  audioMap: mergedAudioMap,
   availableRoots: [], // Will be set from dictionaryStore
   currentRootsList: [], // Will be populated when availableRoots is set
   currentSortBy: 'alphabetical',
@@ -366,7 +415,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
 
         for (const [word, file] of Object.entries(savedFiles)) {
           // Use current AUDIO_DIR path (handles container ID changes)
-          const currentPath = `${AUDIO_DIR}${word}.mp3`;
+          const currentPath = `${AUDIO_DIR}${getLocalFilename(word)}`;
           const fileInfo = await FileSystem.getInfoAsync(currentPath);
 
           if (fileInfo.exists) {
@@ -429,7 +478,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     console.log(`[Audio] Starting download: ${word} (${fileSizeKB} KB)`);
 
     try {
-      const localUri = `${AUDIO_DIR}${word}.mp3`;
+      const localUri = `${AUDIO_DIR}${getLocalFilename(word)}`;
 
       // Build list of URLs to try for Google Drive files
       // Google Drive blocks direct downloads for large files, so we try multiple formats
@@ -572,11 +621,11 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   downloadAll: async () => {
-    const { audioMap, downloadedFiles } = get();
+    const { audioMap, downloadedFiles, availableRoots } = get();
 
-    // Download all files that aren't already downloaded
-    const wordsToDownload = Object.keys(audioMap).filter(
-      (word) => !downloadedFiles[word]
+    // Download all files for the current book that aren't already downloaded
+    const wordsToDownload = availableRoots.filter(
+      (word) => audioMap[word] && !downloadedFiles[word]
     );
 
     console.log(`Downloading ${wordsToDownload.length} audio files...`);
@@ -629,29 +678,30 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   deleteAll: async () => {
-    const { sound } = get();
+    const { sound, downloadedFiles, availableRoots, currentWord } = get();
 
     try {
-      // Stop and unload any currently playing audio
-      if (sound) {
+      // Stop playback if current word is in this book
+      if (sound && currentWord && availableRoots.includes(currentWord)) {
         await sound.stopAsync();
         await sound.unloadAsync();
+        set({ sound: null, currentWord: null, isPlaying: false, playbackPosition: 0, playbackDuration: 0 });
       }
 
-      // Delete entire audio directory
-      await FileSystem.deleteAsync(AUDIO_DIR, { idempotent: true });
+      // Delete only files belonging to current book's roots
+      const remainingFiles = { ...downloadedFiles };
+      for (const word of availableRoots) {
+        if (remainingFiles[word]) {
+          await FileSystem.deleteAsync(remainingFiles[word].localUri, { idempotent: true });
+          delete remainingFiles[word];
+        }
+      }
 
-      // Recreate directory
-      await FileSystem.makeDirectoryAsync(AUDIO_DIR, { intermediates: true });
+      // Save updated list
+      const filesListPath = `${AUDIO_DIR}downloaded.json`;
+      await FileSystem.writeAsStringAsync(filesListPath, JSON.stringify(remainingFiles));
 
-      set({
-        downloadedFiles: {},
-        sound: null,
-        currentWord: null,
-        isPlaying: false,
-        playbackPosition: 0,
-        playbackDuration: 0,
-      });
+      set({ downloadedFiles: remainingFiles });
     } catch (error) {
       console.error('Error deleting all audio:', error);
     }
@@ -1046,12 +1096,18 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   getDownloadedCount: () => {
-    return Object.keys(get().downloadedFiles).length;
+    const { downloadedFiles, availableRoots } = get();
+    // Scope to current book's roots
+    return availableRoots.filter(word => !!downloadedFiles[word]).length;
   },
 
   getTotalSize: () => {
-    const { downloadedFiles } = get();
-    return Object.values(downloadedFiles).reduce((sum, file) => sum + file.size, 0);
+    const { downloadedFiles, availableRoots } = get();
+    // Scope to current book's roots
+    return availableRoots.reduce((sum, word) => {
+      const file = downloadedFiles[word];
+      return file ? sum + file.size : sum;
+    }, 0);
   },
 
   setAvailableRoots: (roots: string[]) => {

@@ -21,6 +21,12 @@ export default function AudioLayout() {
         }}
       />
       <Stack.Screen
+        name="[dictionaryName]"
+        options={{
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
         name="root"
         options={{
           gestureEnabled: true,
